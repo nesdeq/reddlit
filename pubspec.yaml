@@ -1,0 +1,40 @@
+name: reddlit
+description: A minimalist Reddit reader with AI-powered article summarization
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.2.0
+  html: ^0.15.4
+  cached_network_image: ^3.3.1
+  provider: ^6.1.1
+  url_launcher: ^6.2.4
+  video_player: ^2.8.2
+  youtube_player_flutter: ^9.0.3
+  google_fonts: ^6.2.1
+  shared_preferences: ^2.3.5
+  flutter_markdown: ^0.7.4+1
+  markdown: ^7.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.2
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icons/icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#FF4500"
+  adaptive_icon_foreground: "assets/icons/icon.png"
+
+flutter:
+  uses-material-design: true

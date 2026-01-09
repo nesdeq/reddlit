@@ -1,0 +1,40 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+*.apk
+*.aab
+
+# Secrets
+*.env
+.env*
+**/keystore.jks
+**/key.properties
+**/google-services.json
+
+# Claude Code
+.claude/
