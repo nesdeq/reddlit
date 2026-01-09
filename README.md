@@ -1,6 +1,10 @@
 # Reddlit
 
-A minimalist Reddit reader with AI-powered article summarization.
+A minimalist Reddit reader with AI-powered article summarization (optional). Written over a weekend with Claude Code. Share, fork, use. 
+
+Pure lurking, no account/official API support.
+
+Primarily written for Android but should compile for Web, Linux, Windows, macOS and i(pad)OS.
 
 ## Features
 
