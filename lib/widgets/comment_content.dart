@@ -110,11 +110,11 @@ class CustomImageBuilder extends MarkdownElementBuilder {
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
     final String? src = element.attributes['src'];
-    if (!MediaUtils.isValidImageSource(src)) {
+    if (!MediaUtils.isValidHttpUrl(src)) {
       return null;
     }
 
-    // MediaUtils.isValidImageSource ensures src is non-null and non-empty
+    // MediaUtils.isValidHttpUrl ensures src is non-null and non-empty
     final imageUrl = src!; // Safe after validation
 
     return Padding(

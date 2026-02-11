@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/subreddit.dart';
 import '../services/reddit_service.dart';
 import '../theme/app_theme.dart';
@@ -180,10 +181,10 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
               ),
               child: subreddit.iconUrl != null
                   ? ClipOval(
-                      child: Image.network(
-                        subreddit.iconUrl!,
+                      child: CachedNetworkImage(
+                        imageUrl: subreddit.iconUrl!,
                         fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
+                        errorWidget: (context, url, error) =>
                             _buildPlaceholderIcon(colors),
                       ),
                     )

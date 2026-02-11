@@ -36,15 +36,15 @@ class UrlUtils {
   }
 
   /// Extract YouTube video ID from various YouTube URL formats
-  static String? extractYoutubeId(String url) {
-    final patterns = [
-      RegExp(r'youtube\.com/watch\?v=([^&]+)'),
-      RegExp(r'youtu\.be/([^?]+)'),
-      RegExp(r'youtube\.com/embed/([^?]+)'),
-      RegExp(r'youtube\.com/v/([^?]+)'),
-    ];
+  static final _youtubePatterns = [
+    RegExp(r'youtube\.com/watch\?v=([^&]+)'),
+    RegExp(r'youtu\.be/([^?]+)'),
+    RegExp(r'youtube\.com/embed/([^?]+)'),
+    RegExp(r'youtube\.com/v/([^?]+)'),
+  ];
 
-    for (final pattern in patterns) {
+  static String? extractYoutubeId(String url) {
+    for (final pattern in _youtubePatterns) {
       final match = pattern.firstMatch(url);
       if (match != null && match.groupCount >= 1) {
         return match.group(1);

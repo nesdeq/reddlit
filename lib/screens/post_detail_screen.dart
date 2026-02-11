@@ -218,7 +218,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
       case PostContentType.redditVideo:
         // Use MediaUtils for consistent validation
-        if (MediaUtils.isValidVideoUrl(widget.post.videoUrl)) {
+        if (MediaUtils.isValidHttpUrl(widget.post.videoUrl)) {
           return RedditVideoPlayer(videoUrl: widget.post.videoUrl!);
         }
         return LoadingWidgets.videoError(context);

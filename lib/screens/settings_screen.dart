@@ -389,75 +389,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final colors = ThemeHelper(context);
     final favorites = context.read<ThemeProvider>().favoriteSubreddits.toList()..sort();
 
-    showModalBottomSheet(
+    ModalWidgets.showBottomSheetModal(
       context: context,
-      backgroundColor: colors.surfaceColor,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppTheme.radiusLarge),
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
+          child: Text(
+            'Favorite Subreddits',
+            style: colors.theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
         ),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) {
-          return Column(
-            children: [
-              const SizedBox(height: AppTheme.spacing2),
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colors.dividerColor,
-                  borderRadius: BorderRadius.circular(2),
+        const SizedBox(height: AppTheme.spacing2),
+        if (favorites.isEmpty)
+          Padding(
+            padding: const EdgeInsets.all(AppTheme.spacing6),
+            child: Center(
+              child: Text(
+                'No favorites yet',
+                style: colors.theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+              ),
+            ),
+          )
+        else
+          ...favorites.map((subreddit) => ListTile(
+                title: Text('r/$subreddit'),
+                trailing: IconButton(
+                  icon: Icon(Icons.delete_outline, color: colors.textSecondary),
+                  onPressed: () {
+                    context.read<ThemeProvider>().toggleFavorite(subreddit);
+                  },
                 ),
-              ),
-              const SizedBox(height: AppTheme.spacing4),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
-                child: Text(
-                  'Favorite Subreddits',
-                  style: colors.theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-              const SizedBox(height: AppTheme.spacing4),
-              Expanded(
-                child: favorites.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No favorites yet',
-                          style: colors.theme.textTheme.bodyMedium?.copyWith(
-                                color: colors.textSecondary,
-                              ),
-                        ),
-                      )
-                    : ListView.builder(
-                        controller: scrollController,
-                        itemCount: favorites.length,
-                        itemBuilder: (context, index) {
-                          final subreddit = favorites[index];
-                          return ListTile(
-                            title: Text('r/$subreddit'),
-                            trailing: IconButton(
-                              icon: Icon(Icons.delete_outline, color: colors.textSecondary),
-                              onPressed: () {
-                                context.read<ThemeProvider>().toggleFavorite(subreddit);
-                              },
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              const SizedBox(height: AppTheme.spacing4),
-            ],
-          );
-        },
-      ),
+              )),
+      ],
     );
   }
 }

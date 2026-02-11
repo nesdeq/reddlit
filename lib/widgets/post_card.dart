@@ -132,7 +132,7 @@ class PostCard extends StatelessWidget {
 
       case PostContentType.redditVideo:
         // Use MediaUtils for consistent validation
-        if (MediaUtils.isValidVideoUrl(post.videoUrl)) {
+        if (MediaUtils.isValidHttpUrl(post.videoUrl)) {
           return RedditVideoPlayer(videoUrl: post.videoUrl!);
         }
         return LoadingWidgets.videoError(context);
@@ -170,7 +170,7 @@ class PostCard extends StatelessWidget {
 
       case PostContentType.video:
         // For other video types, show thumbnail with play icon
-        if (MediaUtils.isValidThumbnail(post.thumbnail)) {
+        if (MediaUtils.isValidUrl(post.thumbnail)) {
           final imageUrl = post.imageUrl.isNotEmpty ? post.imageUrl : (post.thumbnail ?? '');
           return Stack(
             alignment: Alignment.center,

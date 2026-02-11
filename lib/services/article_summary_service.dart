@@ -91,34 +91,18 @@ class ArticleSummaryService {
           'Authorization': 'Bearer $apiKey',
         },
         body: json.encode({
-          'model': 'gpt-5-mini',
+          'model': 'gpt-5.2',
           'messages': [
             {
               'role': 'system',
-              'content': '''Summarize this article in $language.
-
-OUTPUT FORMAT:
-- 3-5 short paragraphs, each one sentence
-- Include specific numbers, dates, statistics
-- First paragraph: main point
-- Middle: key facts
-- Last: conclusion/implication
-- Separate paragraphs with blank lines
-
-HANDLING ISSUES:
-- If paywalled: summarize what's visible, note "[Paywall - partial content]"
-- If login required: note "[Login wall]"
-- If empty/broken: say "Could not extract article content"
-- Ignore navigation, ads, cookie notices, subscribe prompts
-- Focus only on the actual article text''',
+              'content': '''Summarize this article in $language in 2-3 sentences. Include key numbers/dates if any. If paywalled or empty, say so briefly.''',
             },
             {
               'role': 'user',
               'content': text,
             },
           ],
-          'reasoning_effort': 'minimal',
-          'max_completion_tokens': 2048,
+          'max_completion_tokens': 512,
         }),
       ).timeout(const Duration(seconds: 30));
 
