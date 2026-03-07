@@ -208,7 +208,7 @@ class ArticleSummaryWidget {
                       const SizedBox(width: AppTheme.spacing2),
                       Expanded(
                         child: Text(
-                          'AI-generated summary powered by GPT-5.2',
+                          'AI-generated summary powered by GPT-5 Mini',
                           style: colors.theme.textTheme.bodySmall,
                         ),
                       ),

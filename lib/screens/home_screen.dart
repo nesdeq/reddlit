@@ -150,10 +150,6 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
     return Scaffold(
       backgroundColor: colors.backgroundColor,
       appBar: AppBar(
-        // Dynamic title (commented out - often doesn't fit):
-        // title: Text(_currentSubreddit != null
-        //     ? (_currentSubreddit == 'personal' ? 'Personal Selection' : 'r/$_currentSubreddit')
-        //     : 'Reddlit'),
         title: const Text('Reddlit'),
         actions: [
           IconButton(

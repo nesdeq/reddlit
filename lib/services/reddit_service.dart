@@ -4,11 +4,12 @@ import '../models/reddit_post.dart';
 import '../models/reddit_comment.dart';
 import '../models/reddit_user.dart';
 import '../models/subreddit.dart';
+import '../constants/http_constants.dart';
 
 class RedditService {
-  static const Map<String, String> _headers = {
-    'User-Agent': 'Reddlit/1.0.0 (Flutter Reddit Reader)',
-  };
+  static final http.Client _client = http.Client();
+
+  static const Map<String, String> _headers = HttpConstants.browserHeaders;
 
   Future<List<RedditPost>> getFrontpage({
     String sort = 'hot',
@@ -55,7 +56,7 @@ class RedditService {
         after != null ? {'after': after} : null,
       );
 
-      final response = await http.get(uri, headers: _headers);
+      final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -90,7 +91,7 @@ class RedditService {
         queryParams.isNotEmpty ? queryParams : null,
       );
 
-      final response = await http.get(uri, headers: _headers);
+      final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -118,7 +119,7 @@ class RedditService {
         {'sort': sort},
       );
 
-      final response = await http.get(uri, headers: _headers);
+      final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -139,7 +140,7 @@ class RedditService {
   Future<RedditUser> getUserInfo(String username) async {
     try {
       final uri = Uri.https('www.reddit.com', '/user/$username/about.json');
-      final response = await http.get(uri, headers: _headers);
+      final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
@@ -160,7 +161,7 @@ class RedditService {
         {'q': query, 'limit': '100', 'include_over_18': 'on'},
       );
 
-      final response = await http.get(uri, headers: _headers);
+      final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);

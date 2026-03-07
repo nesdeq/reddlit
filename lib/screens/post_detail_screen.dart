@@ -4,9 +4,7 @@ import '../models/reddit_comment.dart';
 import '../services/reddit_service.dart';
 import '../widgets/comment_tile.dart';
 import '../widgets/comment_content.dart';
-import '../widgets/gallery_viewer.dart';
-import '../widgets/reddit_video_player.dart';
-import '../widgets/youtube_video_player.dart';
+import '../widgets/content_preview.dart';
 import '../widgets/loading_widgets.dart';
 import '../widgets/content_widgets.dart';
 import '../widgets/sort_dialogs.dart';
@@ -15,7 +13,6 @@ import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/format_utils.dart';
 import '../utils/url_utils.dart';
-import '../utils/media_utils.dart';
 import '../utils/navigation_helper.dart';
 import '../constants/sort_constants.dart';
 
@@ -77,7 +74,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Future<void> _onRefresh() async {
     await _loadComments();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +139,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
                 // Content preview (images, videos, etc.)
                 const SizedBox(height: AppTheme.spacing4),
-                _buildContentPreview(),
+                ContentPreview(post: widget.post, isCompact: false),
 
                 // Self text - with smart image rendering
                 if (widget.post.selftext != null &&
@@ -205,73 +201,5 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildContentPreview() {
-    switch (widget.post.contentType) {
-      case PostContentType.gallery:
-        // Multiple images with swipeable gallery - full size in detail view
-        return GalleryViewer(
-          images: widget.post.galleryImages,
-          constrainAspectRatio: false,
-        );
-
-      case PostContentType.redditVideo:
-        // Use MediaUtils for consistent validation
-        if (MediaUtils.isValidHttpUrl(widget.post.videoUrl)) {
-          return RedditVideoPlayer(videoUrl: widget.post.videoUrl!);
-        }
-        return LoadingWidgets.videoError(context);
-
-      case PostContentType.youtubeVideo:
-        if (MediaUtils.isValidYoutubeId(widget.post.youtubeId)) {
-          return YoutubeVideoPlayer(youtubeId: widget.post.youtubeId!);
-        }
-        break;
-
-      case PostContentType.image:
-        // Use MediaUtils for consistent validation
-        if (MediaUtils.isValidUrl(widget.post.url)) {
-          return ConstrainedBox(
-            constraints: const BoxConstraints(
-              minHeight: 200,
-              maxHeight: 600,
-            ),
-            child: ContentWidgets.cachedImage(
-              context: context,
-              imageUrl: widget.post.url!,
-              fit: BoxFit.cover,
-              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-            ),
-          );
-        }
-        break;
-
-      case PostContentType.externalLink:
-        return ContentWidgets.externalLinkPreview(
-          context: context,
-          url: widget.post.url!,
-          domain: widget.post.domain,
-          onTap: () => UrlUtils.openUrl(widget.post.url!),
-        );
-
-      case PostContentType.text:
-        // Text posts don't need additional preview
-        return const SizedBox.shrink();
-
-      case PostContentType.video:
-        // For other video types, show link to video
-        if (MediaUtils.isValidUrl(widget.post.url)) {
-          return ContentWidgets.externalLinkPreview(
-            context: context,
-            url: widget.post.url!,
-            domain: widget.post.domain,
-            onTap: () => UrlUtils.openUrl(widget.post.url!),
-          );
-        }
-        break;
-    }
-
-    return const SizedBox.shrink();
   }
 }

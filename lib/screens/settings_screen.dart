@@ -384,7 +384,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-
   void _showFavoritesManager() {
     final colors = ThemeHelper(context);
     final favorites = context.read<ThemeProvider>().favoriteSubreddits.toList()..sort();

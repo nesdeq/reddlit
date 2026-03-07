@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' show parse;
+import '../constants/http_constants.dart';
 
 class ArticleSummaryService {
   static const String _openAiApiUrl = 'https://api.openai.com/v1/chat/completions';
-
-  static const String _userAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
   /// Fetch article and summarize. Returns summary or null if failed.
   Future<String?> summarizeArticle({
@@ -30,11 +28,7 @@ class ArticleSummaryService {
     try {
       final response = await http.get(
         Uri.parse(url),
-        headers: {
-          'User-Agent': _userAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.5,de;q=0.3',
-        },
+        headers: HttpConstants.browserHeaders,
       ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode != 200) return null;
@@ -91,7 +85,7 @@ class ArticleSummaryService {
           'Authorization': 'Bearer $apiKey',
         },
         body: json.encode({
-          'model': 'gpt-5.2',
+          'model': 'gpt-5-mini',
           'messages': [
             {
               'role': 'system',
