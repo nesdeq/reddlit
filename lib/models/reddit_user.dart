@@ -1,19 +1,16 @@
 import '../utils/format_utils.dart';
-import '../utils/url_utils.dart';
 
 class RedditUser {
   final String name;
   final int linkKarma;
   final int commentKarma;
   final DateTime created;
-  final String? iconImg;
 
   RedditUser({
     required this.name,
     required this.linkKarma,
     required this.commentKarma,
     required this.created,
-    this.iconImg,
   });
 
   factory RedditUser.fromJson(Map<String, dynamic> json) {
@@ -23,7 +20,6 @@ class RedditUser {
       linkKarma: data['link_karma'] ?? 0,
       commentKarma: data['comment_karma'] ?? 0,
       created: FormatUtils.fromRedditUtc(data['created_utc']),
-      iconImg: UrlUtils.cleanIconUrl(data['icon_img']),
     );
   }
 

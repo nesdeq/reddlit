@@ -23,235 +23,134 @@ class AppTheme {
   static const Color darkDivider = Color(0xFF38383A);
   static const Color darkAccent = Color(0xFF0A84FF);
 
-  static ThemeData get lightTheme {
+  static ThemeData get lightTheme => _buildTheme(
+    brightness: Brightness.light,
+    primaryColor: primary,
+    backgroundColor: background,
+    surfaceColor: surface,
+    textPrimaryColor: textPrimary,
+    textSecondaryColor: textSecondary,
+    accentColor: accent,
+    dividerColor: divider,
+    errorColor: const Color(0xFFFF3B30),
+    overlayStyle: SystemUiOverlayStyle.dark,
+  );
+
+  static ThemeData get darkTheme => _buildTheme(
+    brightness: Brightness.dark,
+    primaryColor: darkPrimary,
+    backgroundColor: darkBackground,
+    surfaceColor: darkSurface,
+    textPrimaryColor: darkTextPrimary,
+    textSecondaryColor: darkTextSecondary,
+    accentColor: darkAccent,
+    dividerColor: darkDivider,
+    errorColor: const Color(0xFFFF453A),
+    overlayStyle: SystemUiOverlayStyle.light,
+    onSurface: darkTextPrimary,
+  );
+
+  static ThemeData _buildTheme({
+    required Brightness brightness,
+    required Color primaryColor,
+    required Color backgroundColor,
+    required Color surfaceColor,
+    required Color textPrimaryColor,
+    required Color textSecondaryColor,
+    required Color accentColor,
+    required Color dividerColor,
+    required Color errorColor,
+    required SystemUiOverlayStyle overlayStyle,
+    Color? onSurface,
+  }) {
+    final isLight = brightness == Brightness.light;
+    final colorScheme = isLight
+        ? ColorScheme.light(
+            primary: primaryColor,
+            secondary: accentColor,
+            surface: surfaceColor,
+            error: errorColor,
+          )
+        : ColorScheme.dark(
+            primary: primaryColor,
+            secondary: accentColor,
+            surface: surfaceColor,
+            error: errorColor,
+            onSurface: onSurface ?? textPrimaryColor,
+          );
+
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.light,
-      primaryColor: primary,
-      scaffoldBackgroundColor: background,
+      brightness: brightness,
+      primaryColor: primaryColor,
+      scaffoldBackgroundColor: backgroundColor,
       fontFamily: GoogleFonts.inter().fontFamily,
-
-      // Color scheme
-      colorScheme: const ColorScheme.light(
-        primary: primary,
-        secondary: accent,
-        surface: surface,
-        error: Color(0xFFFF3B30),
-      ),
-
-      // App bar theme - minimal and clean
+      colorScheme: colorScheme,
       appBarTheme: AppBarTheme(
-        backgroundColor: surface,
-        foregroundColor: textPrimary,
+        backgroundColor: surfaceColor,
+        foregroundColor: textPrimaryColor,
         elevation: 0,
         centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
+        systemOverlayStyle: overlayStyle,
         titleTextStyle: GoogleFonts.inter(
-          color: textPrimary,
+          color: textPrimaryColor,
           fontSize: 34,
           fontWeight: FontWeight.w700,
           letterSpacing: -0.5,
         ),
       ),
-
-      // Text theme - Inter (SF Pro inspired)
-      textTheme: TextTheme(
-        displayLarge: GoogleFonts.inter(
-          fontSize: 34,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
-          color: textPrimary,
-          height: 1.2,
-        ),
-        displayMedium: GoogleFonts.inter(
-          fontSize: 28,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
-          color: textPrimary,
-          height: 1.2,
-        ),
-        titleLarge: GoogleFonts.inter(
-          fontSize: 17,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.2,
-          color: textPrimary,
-          height: 1.3,
-        ),
-        titleMedium: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.2,
-          color: textPrimary,
-          height: 1.3,
-        ),
-        bodyLarge: GoogleFonts.inter(
-          fontSize: 17,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.2,
-          color: textPrimary,
-          height: 1.4,
-        ),
-        bodyMedium: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.1,
-          color: textPrimary,
-          height: 1.4,
-        ),
-        bodySmall: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.1,
-          color: textSecondary,
-          height: 1.3,
-        ),
-        labelMedium: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.1,
-          color: textSecondary,
-          height: 1.2,
-        ),
-      ),
-
-      // Card theme - subtle elevation
-      cardTheme: const CardThemeData(
-        color: surface,
+      textTheme: _buildTextTheme(textPrimaryColor, textSecondaryColor),
+      cardTheme: CardThemeData(
+        color: surfaceColor,
         elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
         margin: EdgeInsets.zero,
       ),
-
-      // Divider theme
-      dividerTheme: const DividerThemeData(
-        color: divider,
+      dividerTheme: DividerThemeData(
+        color: dividerColor,
         thickness: 0.5,
         space: 0,
       ),
-
-      // Icon theme
-      iconTheme: const IconThemeData(
-        color: textSecondary,
+      iconTheme: IconThemeData(
+        color: textSecondaryColor,
         size: 22,
       ),
     );
   }
 
-  static ThemeData get darkTheme {
-    return ThemeData(
-      useMaterial3: true,
-      brightness: Brightness.dark,
-      primaryColor: darkPrimary,
-      scaffoldBackgroundColor: darkBackground,
-      fontFamily: GoogleFonts.inter().fontFamily,
-
-      // Color scheme
-      colorScheme: const ColorScheme.dark(
-        primary: darkPrimary,
-        secondary: darkAccent,
-        surface: darkSurface,
-        error: Color(0xFFFF453A),
-        onSurface: darkTextPrimary,
+  static TextTheme _buildTextTheme(Color primaryColor, Color secondaryColor) {
+    return TextTheme(
+      displayLarge: GoogleFonts.inter(
+        fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5,
+        color: primaryColor, height: 1.2,
       ),
-
-      // App bar theme - soft dark
-      appBarTheme: AppBarTheme(
-        backgroundColor: darkSurface,
-        foregroundColor: darkTextPrimary,
-        elevation: 0,
-        centerTitle: false,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        titleTextStyle: GoogleFonts.inter(
-          color: darkTextPrimary,
-          fontSize: 34,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
-        ),
+      displayMedium: GoogleFonts.inter(
+        fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.3,
+        color: primaryColor, height: 1.2,
       ),
-
-      // Text theme - Inter with soft contrast
-      textTheme: TextTheme(
-        displayLarge: GoogleFonts.inter(
-          fontSize: 34,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
-          color: darkTextPrimary,
-          height: 1.2,
-        ),
-        displayMedium: GoogleFonts.inter(
-          fontSize: 28,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.3,
-          color: darkTextPrimary,
-          height: 1.2,
-        ),
-        titleLarge: GoogleFonts.inter(
-          fontSize: 17,
-          fontWeight: FontWeight.w600,
-          letterSpacing: -0.2,
-          color: darkTextPrimary,
-          height: 1.3,
-        ),
-        titleMedium: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.2,
-          color: darkTextPrimary,
-          height: 1.3,
-        ),
-        bodyLarge: GoogleFonts.inter(
-          fontSize: 17,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.2,
-          color: darkTextPrimary,
-          height: 1.4,
-        ),
-        bodyMedium: GoogleFonts.inter(
-          fontSize: 15,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.1,
-          color: darkTextPrimary,
-          height: 1.4,
-        ),
-        bodySmall: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w400,
-          letterSpacing: -0.1,
-          color: darkTextSecondary,
-          height: 1.3,
-        ),
-        labelMedium: GoogleFonts.inter(
-          fontSize: 13,
-          fontWeight: FontWeight.w500,
-          letterSpacing: -0.1,
-          color: darkTextSecondary,
-          height: 1.2,
-        ),
+      titleLarge: GoogleFonts.inter(
+        fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.2,
+        color: primaryColor, height: 1.3,
       ),
-
-      // Card theme - soft dark surface
-      cardTheme: const CardThemeData(
-        color: darkSurface,
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-        ),
-        margin: EdgeInsets.zero,
+      titleMedium: GoogleFonts.inter(
+        fontSize: 15, fontWeight: FontWeight.w500, letterSpacing: -0.2,
+        color: primaryColor, height: 1.3,
       ),
-
-      // Divider theme - subtle in dark mode
-      dividerTheme: const DividerThemeData(
-        color: darkDivider,
-        thickness: 0.5,
-        space: 0,
+      bodyLarge: GoogleFonts.inter(
+        fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.2,
+        color: primaryColor, height: 1.4,
       ),
-
-      // Icon theme
-      iconTheme: const IconThemeData(
-        color: darkTextSecondary,
-        size: 22,
+      bodyMedium: GoogleFonts.inter(
+        fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.1,
+        color: primaryColor, height: 1.4,
+      ),
+      bodySmall: GoogleFonts.inter(
+        fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: -0.1,
+        color: secondaryColor, height: 1.3,
+      ),
+      labelMedium: GoogleFonts.inter(
+        fontSize: 13, fontWeight: FontWeight.w500, letterSpacing: -0.1,
+        color: secondaryColor, height: 1.2,
       ),
     );
   }

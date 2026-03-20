@@ -65,36 +65,32 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
     }
   }
 
-  /// Load more posts for pagination
+  /// Load more posts for pagination.
+  /// Sets isLoading without setState to avoid rebuilding the list mid-scroll,
+  /// which would change itemCount/maxScrollExtent and disrupt ballistic physics.
   Future<void> loadMorePosts() async {
     if (isLoading || posts.isEmpty) return;
-
-    setState(() {
-      isLoading = true;
-    });
+    isLoading = true;
 
     try {
       final lastPost = posts.last;
       final newPosts = await loadPostsImplementation(after: 't3_${lastPost.id}');
 
       if (mounted) {
-        // Deduplicate: only add posts we don't already have
         final existingIds = posts.map((p) => p.id).toSet();
         final uniqueNewPosts = newPosts.where((p) => !existingIds.contains(p.id)).toList();
 
         setState(() {
           posts.addAll(uniqueNewPosts);
-          isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
         _showErrorSnackBar('Failed to load more posts.');
       }
     }
+
+    isLoading = false;
   }
 
   /// Clear posts and reload (used when changing filters/sorts)

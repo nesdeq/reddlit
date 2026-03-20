@@ -148,7 +148,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         children: [
           // API Key Section
-          _buildSectionHeader(context, 'Article Summarization'),
+          _buildSectionHeader('Article Summarization'),
           Container(
             color: colors.surfaceColor,
             padding: const EdgeInsets.all(AppTheme.spacing4),
@@ -279,7 +279,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppTheme.spacing4),
 
           // Appearance Section
-          _buildSectionHeader(context, 'Appearance'),
+          _buildSectionHeader('Appearance'),
           Container(
             color: colors.surfaceColor,
             child: ListTile(
@@ -297,7 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppTheme.spacing4),
 
           // Subreddit Settings Section
-          _buildSectionHeader(context, 'Subreddit Settings'),
+          _buildSectionHeader('Subreddit Settings'),
           Container(
             color: colors.surfaceColor,
             child: Column(
@@ -328,7 +328,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppTheme.spacing4),
 
           // About Section
-          _buildSectionHeader(context, 'About'),
+          _buildSectionHeader('About'),
           Container(
             color: colors.surfaceColor,
             padding: const EdgeInsets.all(AppTheme.spacing4),
@@ -363,7 +363,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSectionHeader(BuildContext context, String title) {
+  Widget _buildSectionHeader(String title) {
     final colors = ThemeHelper(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(

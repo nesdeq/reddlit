@@ -55,15 +55,12 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
     }
   }
 
+  void _setSubreddit(String value) {
+    _currentSubreddit = value == 'frontpage' ? null : value;
+  }
+
   void _loadPostsFromDefault() {
-    final defaultSub = context.read<ThemeProvider>().defaultSubreddit;
-    setState(() {
-      if (defaultSub == 'frontpage') {
-        _currentSubreddit = null;
-      } else {
-        _currentSubreddit = defaultSub;
-      }
-    });
+    setState(() => _setSubreddit(context.read<ThemeProvider>().defaultSubreddit));
     loadPosts();
   }
 
@@ -131,14 +128,7 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
     await context.read<ThemeProvider>().setDefaultSubreddit(value);
     if (mounted) {
       Navigator.pop(context);
-      // Reload home screen with new default
-      setState(() {
-        if (value == 'frontpage') {
-          _currentSubreddit = null;
-        } else {
-          _currentSubreddit = value;
-        }
-      });
+      setState(() => _setSubreddit(value));
       clearAndReload();
     }
   }

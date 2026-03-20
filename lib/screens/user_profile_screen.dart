@@ -52,7 +52,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
         _user = user;
         _isLoadingUser = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _isLoadingUser = false;
       });

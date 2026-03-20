@@ -59,16 +59,11 @@ class RedditService {
       final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final children = data['data']['children'] as List;
-        return children
-            .where((child) => child['kind'] == 't3')
-            .map((child) => RedditPost.fromJson(child))
-            .toList();
+        return _parsePosts(json.decode(response.body));
       }
       return [];
-    } catch (e) {
-      return _handleError<List<RedditPost>>('user posts', e, []);
+    } catch (_) {
+      return [];
     }
   }
 
@@ -94,16 +89,11 @@ class RedditService {
       final response = await _client.get(uri, headers: _headers);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        final children = data['data']['children'] as List;
-        return children
-            .where((child) => child['kind'] == 't3')
-            .map((child) => RedditPost.fromJson(child))
-            .toList();
+        return _parsePosts(json.decode(response.body));
       }
       return [];
-    } catch (e) {
-      return _handleError<List<RedditPost>>('posts', e, []);
+    } catch (_) {
+      return [];
     }
   }
 
@@ -132,8 +122,8 @@ class RedditService {
         }
       }
       return [];
-    } catch (e) {
-      return _handleError<List<RedditComment>>('comments', e, []);
+    } catch (_) {
+      return [];
     }
   }
 
@@ -147,8 +137,8 @@ class RedditService {
         return RedditUser.fromJson(data);
       }
       return RedditUser.empty(username);
-    } catch (e) {
-      return _handleError<RedditUser>('user info', e, RedditUser.empty(username));
+    } catch (_) {
+      return RedditUser.empty(username);
     }
   }
 
@@ -181,11 +171,16 @@ class RedditService {
         return subreddits;
       }
       return [];
-    } catch (e) {
-      return _handleError<List<Subreddit>>('subreddits', e, []);
+    } catch (_) {
+      return [];
     }
   }
 
-  /// Centralized error handler with fallback values
-  T _handleError<T>(String operation, Object error, T fallback) => fallback;
+  List<RedditPost> _parsePosts(Map<String, dynamic> data) {
+    final children = data['data']['children'] as List;
+    return children
+        .where((child) => child['kind'] == 't3')
+        .map((child) => RedditPost.fromJson(child))
+        .toList();
+  }
 }

@@ -67,10 +67,9 @@ class ContentPreview extends StatelessWidget {
       if (!MediaUtils.hasMediaSource(post.url, post.thumbnail)) {
         return const SizedBox.shrink();
       }
-      final imageUrl = post.imageUrl.isNotEmpty ? post.imageUrl : (post.thumbnail ?? '');
       return ContentWidgets.cachedImage(
         context: context,
-        imageUrl: imageUrl,
+        imageUrl: post.imageUrl,
         aspectRatio: 16 / 9,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       );
@@ -91,13 +90,12 @@ class ContentPreview extends StatelessWidget {
   Widget _buildVideo(BuildContext context) {
     if (isCompact) {
       if (!MediaUtils.isValidUrl(post.thumbnail)) return const SizedBox.shrink();
-      final imageUrl = post.imageUrl.isNotEmpty ? post.imageUrl : (post.thumbnail ?? '');
       return Stack(
         alignment: Alignment.center,
         children: [
           ContentWidgets.cachedImage(
             context: context,
-            imageUrl: imageUrl,
+            imageUrl: post.imageUrl,
             aspectRatio: 16 / 9,
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),

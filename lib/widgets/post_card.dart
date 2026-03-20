@@ -19,8 +19,10 @@ class PostCard extends StatelessWidget {
     required this.onTap,
   });
 
-  String _truncateToWords(String text, int wordLimit) {
-    final words = text.trim().split(RegExp(r'\s+'));
+  static final _whitespacePattern = RegExp(r'\s+');
+
+  static String _truncateToWords(String text, int wordLimit) {
+    final words = text.trim().split(_whitespacePattern);
     if (words.length <= wordLimit) {
       return text;
     }

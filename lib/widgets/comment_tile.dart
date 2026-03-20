@@ -70,10 +70,7 @@ class _CommentTileState extends State<CommentTile> {
         ),
         child: Padding(
           // Jony Ive: More generous padding for breathing room
-          padding: EdgeInsets.symmetric(
-            horizontal: AppTheme.spacing3,
-            vertical: AppTheme.spacing3,
-          ),
+          padding: const EdgeInsets.all(AppTheme.spacing3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

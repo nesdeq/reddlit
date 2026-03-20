@@ -49,7 +49,7 @@ class ArticleSummaryWidget {
     // Show result
     if (context.mounted) {
       if (summary != null && summary.isNotEmpty) {
-        _showSummaryDialog(context, title, summary, url);
+        _showSummaryDialog(context, title, summary);
       } else {
         _showErrorDialog(context);
       }
@@ -102,7 +102,6 @@ class ArticleSummaryWidget {
     BuildContext context,
     String title,
     String summary,
-    String url,
   ) {
     final colors = ThemeHelper(context);
     showModalBottomSheet(

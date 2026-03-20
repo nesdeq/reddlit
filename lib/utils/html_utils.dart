@@ -10,7 +10,7 @@ class HtmlUtils {
     try {
       // Parse as HTML fragment and extract text (automatically decodes all entities)
       return parseFragment(text).text ?? text;
-    } catch (e) {
+    } catch (_) {
       return text;
     }
   }

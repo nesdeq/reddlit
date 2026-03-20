@@ -56,7 +56,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         _comments = comments;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (_) {
       setState(() {
         _isLoading = false;
       });
@@ -69,10 +69,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       _comments = [];
     });
     _loadComments();
-  }
-
-  Future<void> _onRefresh() async {
-    await _loadComments();
   }
 
   @override
@@ -109,7 +105,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _onRefresh,
+        onRefresh: _loadComments,
         color: colors.accentColor,
         child: ListView(
         children: [

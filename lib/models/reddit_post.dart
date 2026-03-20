@@ -24,7 +24,6 @@ class RedditPost {
   final String? url;
   final String? selftext;
   final bool isVideo;
-  final String permalink;
   final String domain;
   final String? videoUrl;
   final String? youtubeId;
@@ -42,7 +41,6 @@ class RedditPost {
     this.url,
     this.selftext,
     required this.isVideo,
-    required this.permalink,
     required this.domain,
     this.videoUrl,
     this.youtubeId,
@@ -65,7 +63,6 @@ class RedditPost {
       url: url,
       selftext: _extractSelftext(data),
       isVideo: data['is_video'] ?? false,
-      permalink: data['permalink'] ?? '',
       domain: data['domain'] ?? '',
       videoUrl: _extractVideoUrl(data),
       youtubeId: url != null ? UrlUtils.extractYoutubeId(url) : null,
@@ -155,7 +152,10 @@ class RedditPost {
     }
   }
 
-  String get imageUrl => url ?? thumbnail ?? '';
+  String get imageUrl {
+    if (url != null && url!.isNotEmpty) return url!;
+    return thumbnail ?? '';
+  }
 
   PostContentType get contentType {
     // Gallery post (multiple images)

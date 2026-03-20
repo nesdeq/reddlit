@@ -49,7 +49,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
           _isLoading = false;
         });
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         setState(() {
           _isLoading = false;

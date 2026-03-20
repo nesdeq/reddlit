@@ -58,7 +58,7 @@ class UrlUtils {
     try {
       final uri = Uri.parse(url);
       return uri.host;
-    } catch (e) {
+    } catch (_) {
       return fallback;
     }
   }
@@ -81,7 +81,7 @@ class UrlUtils {
         return true;
       }
       return false;
-    } catch (e) {
+    } catch (_) {
       return false;
     }
   }

@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:html/parser.dart' show parse;
-import '../constants/http_constants.dart';
 
 class ArticleSummaryService {
   static const String _openAiApiUrl = 'https://api.openai.com/v1/chat/completions';
+  static const String _jinaReaderBase = 'https://r.jina.ai/';
 
-  /// Fetch article and summarize. Returns summary or null if failed.
+  /// Fetch article via Jina Reader and summarize. Returns summary or null if failed.
   Future<String?> summarizeArticle({
     required String url,
     required String apiKey,
@@ -15,7 +14,7 @@ class ArticleSummaryService {
     if (apiKey.isEmpty) return null;
 
     try {
-      final content = await _fetchAndExtract(url);
+      final content = await _fetchMarkdown(url);
       if (content == null || content.trim().isEmpty) return null;
       return await _summarize(content, apiKey, language);
     } catch (_) {
@@ -23,56 +22,34 @@ class ArticleSummaryService {
     }
   }
 
-  /// Fetch URL and extract text content
-  Future<String?> _fetchAndExtract(String url) async {
+  /// Fetch article as markdown via Jina Reader API
+  Future<String?> _fetchMarkdown(String url) async {
     try {
       final response = await http.get(
-        Uri.parse(url),
-        headers: HttpConstants.browserHeaders,
-      ).timeout(const Duration(seconds: 15));
+        Uri.parse('$_jinaReaderBase$url'),
+        headers: {'Accept': 'text/plain'},
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode != 200) return null;
-      return _extractText(response.body);
+
+      // Jina returns: Title: ...\nURL Source: ...\nMarkdown Content:\n<content>
+      // Extract just the markdown content after the header
+      final body = response.body;
+      const marker = 'Markdown Content:';
+      final markerIndex = body.indexOf(marker);
+      final content = markerIndex != -1
+          ? body.substring(markerIndex + marker.length).trim()
+          : body.trim();
+
+      // Limit size for LLM context
+      const maxChars = 12000;
+      if (content.length > maxChars) {
+        return content.substring(0, maxChars);
+      }
+      return content;
     } catch (_) {
       return null;
     }
-  }
-
-  /// Extract readable text from HTML
-  String _extractText(String html) {
-    final document = parse(html);
-
-    // Remove junk
-    document.querySelectorAll(
-      'script, style, noscript, iframe, svg, canvas, '
-      'nav, header, footer, aside, form, button, input, '
-      '[role="navigation"], [role="banner"], [role="complementary"], '
-      '[aria-hidden="true"], .ad, .ads, .advertisement, .social, .share, '
-      '.cookie, .popup, .modal, .newsletter, .subscribe'
-    ).forEach((e) => e.remove());
-
-    // Try to find main content, fallback to body
-    final content = document.querySelector('article')?.text ??
-        document.querySelector('main')?.text ??
-        document.querySelector('[role="main"]')?.text ??
-        document.querySelector('.article-content, .post-content, .entry-content, .story-body')?.text ??
-        document.body?.text ??
-        '';
-
-    // Clean whitespace
-    var text = content
-        .replaceAll(RegExp(r'[\t\r]+'), ' ')
-        .replaceAll(RegExp(r'\n{2,}'), '\n')
-        .replaceAll(RegExp(r' {2,}'), ' ')
-        .trim();
-
-    // Limit size
-    const maxChars = 12000;
-    if (text.length > maxChars) {
-      text = text.substring(0, maxChars);
-    }
-
-    return text;
   }
 
   /// Send to LLM for summarization
@@ -89,14 +66,15 @@ class ArticleSummaryService {
           'messages': [
             {
               'role': 'system',
-              'content': '''Summarize this article in $language in 2-3 sentences. Include key numbers/dates if any. If paywalled or empty, say so briefly.''',
+              'content': 'Summarize this article in $language in 2-3 sentences. Include key numbers/dates if any. If paywalled or empty, say so briefly.',
             },
             {
               'role': 'user',
               'content': text,
             },
           ],
-          'max_completion_tokens': 512,
+          'reasoning_effort': 'medium',
+          'max_completion_tokens': 2048,
         }),
       ).timeout(const Duration(seconds: 30));
 

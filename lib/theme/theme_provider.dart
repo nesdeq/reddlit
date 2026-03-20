@@ -45,11 +45,6 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners(); // This will trigger listeners to reload with correct default
   }
 
-  void setThemeMode(ThemeMode mode) {
-    _themeMode = mode;
-    notifyListeners();
-  }
-
   void toggleTheme() {
     if (_themeMode == ThemeMode.light) {
       _themeMode = ThemeMode.dark;
