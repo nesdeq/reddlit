@@ -5,18 +5,13 @@ import 'package:markdown/markdown.dart' as md;
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/url_utils.dart';
-import '../utils/media_utils.dart';
 import '../constants/app_constants.dart';
 
 /// Jony Ive principle: Content speaks for itself
 /// Parse Reddit content: extract images/GIFs FIRST, then apply markdown to text
-class CommentContent extends StatelessWidget {
+class CommentContent extends StatefulWidget {
   final String content;
   final TextStyle? textStyle;
-
-  // Pre-compiled regex patterns for better performance (static final)
-  static final _gifPattern = RegExp(r'!\[gif\]\(giphy\|([A-Za-z0-9]+)(?:\|[^\)]+)?\)');
-  static final _standaloneUrlPattern = RegExp(r'(?<!\]\()(?<!\()https?://[^\s\)]+', caseSensitive: false);
 
   const CommentContent({
     super.key,
@@ -25,12 +20,35 @@ class CommentContent extends StatelessWidget {
   });
 
   @override
+  State<CommentContent> createState() => _CommentContentState();
+}
+
+class _CommentContentState extends State<CommentContent> {
+  // Pre-compiled regex patterns for better performance (static final)
+  static final _gifPattern =
+      RegExp(r'!\[gif\]\(giphy\|([A-Za-z0-9]+)(?:\|[^\)]+)?\)');
+  static final _standaloneUrlPattern = RegExp(
+    r'(?<!\]\()(?<!\()https?://[^\s\)]+',
+    caseSensitive: false,
+  );
+
+  late String _processedContent = _processContent(widget.content);
+
+  @override
+  void didUpdateWidget(covariant CommentContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.content != widget.content) {
+      _processedContent = _processContent(widget.content);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final processedContent = _processContent(content);
+    final textStyle = widget.textStyle;
 
     return MarkdownBody(
-      data: processedContent,
+      data: _processedContent,
       selectable: true,
       onTapLink: (text, href, title) {
         if (href != null) {
@@ -109,58 +127,63 @@ class CustomImageBuilder extends MarkdownElementBuilder {
 
   @override
   Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
-    final String? src = element.attributes['src'];
-    if (!MediaUtils.isValidHttpUrl(src)) {
-      return null;
-    }
-
-    // MediaUtils.isValidHttpUrl ensures src is non-null and non-empty
-    final imageUrl = src!; // Safe after validation
+    final src = element.attributes['src'];
+    if (src == null || !src.startsWith('http')) return null;
+    final imageUrl = src;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppTheme.spacing2),
-      child: GestureDetector(
-        onTap: () => UrlUtils.openUrl(imageUrl),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(
-              height: 200,
-              color: colors.dividerColor,
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: colors.accentColor,
-                  strokeWidth: 2,
+      child: Builder(
+        builder: (context) {
+          final media = MediaQuery.of(context);
+          final memCacheWidth =
+              (media.size.width * media.devicePixelRatio).round();
+          return GestureDetector(
+            onTap: () => UrlUtils.openUrl(imageUrl),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+              child: CachedNetworkImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                memCacheWidth: memCacheWidth,
+                maxWidthDiskCache: memCacheWidth,
+                placeholder: (context, url) => Container(
+                  height: 200,
+                  color: colors.dividerColor,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: colors.accentColor,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                ),
+                errorWidget: (context, url, error) => Container(
+                  height: 100,
+                  color: colors.dividerColor,
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image_not_supported_outlined,
+                          color: colors.textTertiary,
+                          size: 32,
+                        ),
+                        const SizedBox(height: AppTheme.spacing1),
+                        Text(
+                          'Image failed to load',
+                          style: colors.theme.textTheme.bodySmall?.copyWith(
+                            color: colors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
-            errorWidget: (context, url, error) => Container(
-              height: 100,
-              color: colors.dividerColor,
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.image_not_supported_outlined,
-                      color: colors.textTertiary,
-                      size: 32,
-                    ),
-                    const SizedBox(height: AppTheme.spacing1),
-                    Text(
-                      'Image failed to load',
-                      style: colors.theme.textTheme.bodySmall?.copyWith(
-                        color: colors.textTertiary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }

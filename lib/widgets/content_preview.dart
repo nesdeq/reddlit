@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../models/reddit_post.dart';
 import '../theme/app_theme.dart';
 import '../utils/url_utils.dart';
-import '../utils/media_utils.dart';
 import '../constants/app_constants.dart';
 import 'reddit_video_player.dart';
 import 'youtube_video_player.dart';
@@ -16,11 +15,7 @@ class ContentPreview extends StatelessWidget {
   final RedditPost post;
   final bool isCompact;
 
-  const ContentPreview({
-    super.key,
-    required this.post,
-    this.isCompact = true,
-  });
+  const ContentPreview({super.key, required this.post, this.isCompact = true});
 
   @override
   Widget build(BuildContext context) {
@@ -32,14 +27,16 @@ class ContentPreview extends StatelessWidget {
         );
 
       case PostContentType.redditVideo:
-        if (MediaUtils.isValidHttpUrl(post.videoUrl)) {
-          return RedditVideoPlayer(videoUrl: post.videoUrl!);
+        final videoUrl = post.videoUrl;
+        if (videoUrl != null && videoUrl.startsWith('http')) {
+          return RedditVideoPlayer(videoUrl: videoUrl);
         }
         return LoadingWidgets.videoError(context);
 
       case PostContentType.youtubeVideo:
-        if (MediaUtils.isValidYoutubeId(post.youtubeId)) {
-          return YoutubeVideoPlayer(youtubeId: post.youtubeId!);
+        final youtubeId = post.youtubeId;
+        if (youtubeId != null && youtubeId.length >= 10) {
+          return YoutubeVideoPlayer(youtubeId: youtubeId);
         }
         return const SizedBox.shrink();
 
@@ -64,7 +61,8 @@ class ContentPreview extends StatelessWidget {
 
   Widget _buildImage(BuildContext context) {
     if (isCompact) {
-      if (!MediaUtils.hasMediaSource(post.url, post.thumbnail)) {
+      if (!(post.url?.isNotEmpty ?? false) &&
+          !(post.thumbnail?.isNotEmpty ?? false)) {
         return const SizedBox.shrink();
       }
       return ContentWidgets.cachedImage(
@@ -75,7 +73,7 @@ class ContentPreview extends StatelessWidget {
       );
     }
 
-    if (!MediaUtils.isValidUrl(post.url)) return const SizedBox.shrink();
+    if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 200, maxHeight: 600),
       child: ContentWidgets.cachedImage(
@@ -89,7 +87,9 @@ class ContentPreview extends StatelessWidget {
 
   Widget _buildVideo(BuildContext context) {
     if (isCompact) {
-      if (!MediaUtils.isValidUrl(post.thumbnail)) return const SizedBox.shrink();
+      if (!(post.thumbnail?.isNotEmpty ?? false)) {
+        return const SizedBox.shrink();
+      }
       return Stack(
         alignment: Alignment.center,
         children: [
@@ -101,7 +101,9 @@ class ContentPreview extends StatelessWidget {
           ),
           Container(
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
+              color: Colors.black.withValues(
+                alpha: AppConstants.overlayOpacity,
+              ),
               shape: BoxShape.circle,
             ),
             padding: const EdgeInsets.all(AppTheme.spacing3),
@@ -115,7 +117,7 @@ class ContentPreview extends StatelessWidget {
       );
     }
 
-    if (!MediaUtils.isValidUrl(post.url)) return const SizedBox.shrink();
+    if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
     return ContentWidgets.externalLinkPreview(
       context: context,
       url: post.url!,

@@ -2,16 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/reddit_post.dart';
 import '../services/reddit_service.dart';
-import '../widgets/post_card.dart';
-import '../widgets/loading_widgets.dart';
 import '../widgets/modal_widgets.dart';
 import '../widgets/sort_dialogs.dart';
 import '../widgets/post_list_mixin.dart';
+import '../widgets/post_list_view.dart';
 import '../theme/app_theme.dart';
-import '../theme/theme_helper.dart';
 import '../theme/theme_provider.dart';
 import '../constants/sort_constants.dart';
-import '../utils/navigation_helper.dart';
 import 'subreddit_search_screen.dart';
 import 'settings_screen.dart';
 
@@ -28,31 +25,17 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   String _currentSort = SortConstants.hot;
   String? _currentTopTime;
   String? _currentSubreddit;
-  bool _hasLoadedFromDefault = false;
 
   @override
   void initState() {
     super.initState();
-    // Add listener to load default when prefs are ready
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final themeProvider = context.read<ThemeProvider>();
-      if (themeProvider.isPrefsLoaded) {
-        // Prefs already loaded, load immediately
-        _loadPostsFromDefault();
-      } else {
-        // Prefs not loaded yet, add listener
-        themeProvider.addListener(_onPrefsLoaded);
-      }
-    });
+    _bootstrap();
   }
 
-  void _onPrefsLoaded() {
-    final themeProvider = context.read<ThemeProvider>();
-    if (themeProvider.isPrefsLoaded && !_hasLoadedFromDefault) {
-      _hasLoadedFromDefault = true;
-      themeProvider.removeListener(_onPrefsLoaded);
-      _loadPostsFromDefault();
-    }
+  Future<void> _bootstrap() async {
+    await context.read<ThemeProvider>().ready;
+    if (!mounted) return;
+    _loadPostsFromDefault();
   }
 
   void _setSubreddit(String value) {
@@ -60,35 +43,77 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   }
 
   void _loadPostsFromDefault() {
-    setState(() => _setSubreddit(context.read<ThemeProvider>().defaultSubreddit));
+    setState(
+      () => _setSubreddit(context.read<ThemeProvider>().defaultSubreddit),
+    );
+    // Seed from cache synchronously — before loadPosts fires — so a warm
+    // hit means no spinner on bootstrap.
+    final cached = peekCachedPosts();
+    if (cached != null && cached.isNotEmpty) {
+      setState(() => posts = cached);
+    }
     loadPosts();
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) async {
+  Future<List<RedditPost>> loadPostsImplementation({
+    String? after,
+    void Function(List<RedditPost>)? onRefresh,
+  }) async {
     if (_currentSubreddit == 'personal') {
-      // Personal Selection: fetch from all favorited subreddits
-      final favorites = context.read<ThemeProvider>().favoriteSubreddits.toList();
-      return await _redditService.getPersonalPosts(
+      final favorites = context
+          .read<ThemeProvider>()
+          .favoriteSubreddits
+          .toList();
+      return _redditService.getPersonalPosts(
         favorites,
         sort: _currentSort,
         after: after,
         topTime: _currentTopTime,
+        onRefresh: onRefresh,
       );
     } else if (_currentSubreddit != null) {
-      return await _redditService.getSubredditPosts(
+      return _redditService.getSubredditPosts(
         _currentSubreddit!,
         sort: _currentSort,
         after: after,
         topTime: _currentTopTime,
+        onRefresh: onRefresh,
       );
     } else {
-      return await _redditService.getFrontpage(
+      return _redditService.getFrontpage(
         sort: _currentSort,
         after: after,
         topTime: _currentTopTime,
+        onRefresh: onRefresh,
       );
     }
+  }
+
+  @override
+  List<RedditPost>? peekCachedPosts() {
+    if (_currentSubreddit == 'personal') {
+      final favorites = context
+          .read<ThemeProvider>()
+          .favoriteSubreddits
+          .toList();
+      return _redditService.peekPersonalPosts(
+        favorites,
+        sort: _currentSort,
+        topTime: _currentTopTime,
+      );
+    }
+    if (_currentSubreddit != null) {
+      return _redditService.peekSubredditPosts(
+        _currentSubreddit!,
+        sort: _currentSort,
+        topTime: _currentTopTime,
+      );
+    }
+    return _redditService.peekFrontpage(
+      sort: _currentSort,
+      topTime: _currentTopTime,
+    );
   }
 
   void _changeSort(String sort, {String? topTime}) {
@@ -120,27 +145,24 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
     ModalWidgets.showDefaultSubredditModal(
       context: context,
       currentDefault: context.read<ThemeProvider>().defaultSubreddit,
-      onSelected: _changeDefaultSubreddit,
+      onSelected: (value) async {
+        await context.read<ThemeProvider>().setDefaultSubreddit(value);
+        if (!mounted) return;
+        setState(() => _setSubreddit(value));
+        clearAndReload();
+      },
     );
-  }
-
-  Future<void> _changeDefaultSubreddit(String value) async {
-    await context.read<ThemeProvider>().setDefaultSubreddit(value);
-    if (mounted) {
-      Navigator.pop(context);
-      setState(() => _setSubreddit(value));
-      clearAndReload();
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = ThemeHelper(context);
-
     return Scaffold(
-      backgroundColor: colors.backgroundColor,
       appBar: AppBar(
-        title: const Text('Reddlit'),
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: scrollToTop,
+          child: const Text('Reddlit'),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.home_rounded),
@@ -170,29 +192,15 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
           const SizedBox(width: AppTheme.spacing1),
         ],
       ),
-      body: isLoading && posts.isEmpty
-          ? LoadingWidgets.loadingIndicator(context)
-          : RefreshIndicator(
-              onRefresh: onRefresh,
-              color: colors.accentColor,
-              child: ListView.builder(
-                controller: scrollController,
-                cacheExtent: MediaQuery.of(context).size.height * 0.5,
-                itemCount: posts.length + (isLoading ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == posts.length) {
-                    return LoadingWidgets.loadingIndicatorPadded(context);
-                  }
-
-                  final post = posts[index];
-                  return PostCard(
-                    key: ValueKey(post.id),
-                    post: post,
-                    onTap: () => NavigationHelper.navigateToPost(context, post),
-                  );
-                },
-              ),
-            ),
+      body: PostListView(
+        posts: posts,
+        isLoading: isLoading,
+        hasMore: hasMore,
+        errorMessage: loadError,
+        scrollController: scrollController,
+        onRefresh: onRefresh,
+        onRetry: retry,
+      ),
     );
   }
 }

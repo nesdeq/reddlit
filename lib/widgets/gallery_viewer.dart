@@ -92,54 +92,17 @@ class _GalleryViewerState extends State<GalleryViewer> {
 
             // Navigation overlay - Jony Ive: Only show when needed
             if (widget.images.length > 1) ...[
-              // Left arrow (previous)
               if (_currentPage > 0)
-                Positioned(
+                _navArrow(
                   left: AppTheme.spacing2,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _previousPage,
-                      child: Container(
-                        padding: const EdgeInsets.all(AppTheme.spacing2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.chevron_left,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                  ),
+                  icon: Icons.chevron_left_rounded,
+                  onTap: _previousPage,
                 ),
-
-              // Right arrow (next)
               if (_currentPage < widget.images.length - 1)
-                Positioned(
+                _navArrow(
                   right: AppTheme.spacing2,
-                  top: 0,
-                  bottom: 0,
-                  child: Center(
-                    child: GestureDetector(
-                      onTap: _nextPage,
-                      child: Container(
-                        padding: const EdgeInsets.all(AppTheme.spacing2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.chevron_right,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                    ),
-                  ),
+                  icon: Icons.chevron_right_rounded,
+                  onTap: _nextPage,
                 ),
 
               // Page indicator (1/3, 2/3, etc.) - top right
@@ -172,6 +135,35 @@ class _GalleryViewerState extends State<GalleryViewer> {
     );
   }
 
+  Widget _navArrow({
+    double? left,
+    double? right,
+    required IconData icon,
+    required VoidCallback onTap,
+  }) {
+    return Positioned(
+      left: left,
+      right: right,
+      top: 0,
+      bottom: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(AppTheme.spacing2),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(
+                alpha: AppConstants.overlayOpacity,
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: Colors.white, size: 32),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Wrap child with appropriate sizing
   Widget _wrapWithAspectRatio(Widget child) {
     if (widget.constrainAspectRatio) {
@@ -192,11 +184,17 @@ class _GalleryViewerState extends State<GalleryViewer> {
   }
 
   Widget _buildImage(String url) {
-    // Always use cover to fill rounded corners cleanly
-    return ContentWidgets.cachedImage(
-      context: context,
-      imageUrl: url,
-      fit: BoxFit.cover,
+    // Always use cover to fill rounded corners cleanly.
+    // InteractiveViewer enables pinch-to-zoom + pan.
+    return InteractiveViewer(
+      minScale: 1.0,
+      maxScale: 4.0,
+      clipBehavior: Clip.hardEdge,
+      child: ContentWidgets.cachedImage(
+        context: context,
+        imageUrl: url,
+        fit: BoxFit.cover,
+      ),
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../constants/app_constants.dart';
+import '../utils/haptics.dart';
 
 /// Modal bottom sheets and selection widgets
 class ModalWidgets {
@@ -59,7 +60,9 @@ class ModalWidgets {
     );
   }
 
-  /// List tile for selection options (used in sort dialogs, etc.)
+  /// List tile for selection options (used in sort dialogs, etc.).
+  /// Emits a subtle haptic tick on tap — discrete selections should feel like
+  /// picking something physical.
   static Widget selectionListTile({
     required BuildContext context,
     required String label,
@@ -76,15 +79,36 @@ class ModalWidgets {
         ),
       ),
       trailing: isSelected ? Icon(Icons.check, color: colors.accentColor) : null,
-      onTap: onTap,
+      onTap: () {
+        Haptics.selectionClick();
+        onTap();
+      },
     );
   }
 
-  /// Show default subreddit selection modal
+  /// Show default subreddit selection modal. Pops itself before invoking
+  /// [onSelected] so callers don't need to manage modal dismissal.
   static void showDefaultSubredditModal({
     required BuildContext context,
     required String currentDefault,
-    required Function(String value) onSelected,
+    required ValueChanged<String> onSelected,
+  }) {
+    showTitledSelection(
+      context: context,
+      title: 'Default Subreddit',
+      options: AppConstants.defaultSubredditOptions,
+      isSelected: (value) => currentDefault == value,
+      onSelected: onSelected,
+    );
+  }
+
+  /// Titled bottom-sheet list of (value, label) options. Pops on tap.
+  static void showTitledSelection({
+    required BuildContext context,
+    required String title,
+    required List<(String, String)> options,
+    required bool Function(String value) isSelected,
+    required ValueChanged<String> onSelected,
   }) {
     final colors = ThemeHelper(context);
     showBottomSheetModal(
@@ -93,20 +117,23 @@ class ModalWidgets {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
           child: Text(
-            'Default Subreddit',
+            title,
             style: colors.theme.textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
         const SizedBox(height: AppTheme.spacing2),
-        ...AppConstants.defaultSubredditOptions.map((option) {
+        ...options.map((option) {
           final (value, label) = option;
           return selectionListTile(
             context: context,
             label: label,
-            isSelected: currentDefault == value,
-            onTap: () => onSelected(value),
+            isSelected: isSelected(value),
+            onTap: () {
+              Navigator.pop(context);
+              onSelected(value);
+            },
           );
         }),
       ],

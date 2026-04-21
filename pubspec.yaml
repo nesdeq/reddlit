@@ -1,7 +1,7 @@
 name: reddlit
 description: A minimalist Reddit reader with AI-powered article summarization
 publish_to: 'none'
-version: 1.0.4+5
+version: 1.1.0+6
 
 environment:
   sdk: ^3.9.2
@@ -18,6 +18,7 @@ dependencies:
   youtube_player_flutter: ^9.0.3
   google_fonts: ^6.2.1
   shared_preferences: ^2.3.5
+  flutter_secure_storage: ^9.2.2
   flutter_markdown: ^0.7.4+1
   markdown: ^7.3.0
 

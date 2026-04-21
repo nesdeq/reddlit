@@ -3,7 +3,7 @@
 class HttpConstants {
   const HttpConstants._();
 
-  static const String userAgent =
+  static const String _userAgent =
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
@@ -12,7 +12,7 @@ class HttpConstants {
   /// handles gzip/deflate transparently and auto-decompresses responses.
   /// Setting it explicitly disables auto-decompression in dart:io.
   static const Map<String, String> browserHeaders = {
-    'User-Agent': userAgent,
+    'User-Agent': _userAgent,
     'Accept':
         'text/html,application/xhtml+xml,application/xml;q=0.9,'
         'image/avif,image/webp,image/apng,*/*;q=0.8',

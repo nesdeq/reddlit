@@ -8,14 +8,17 @@ class UrlUtils {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
 
-    // Reddit, Imgur, and Giphy image/media hosts
-    if (uri.host.contains('preview.redd.it') ||
-        uri.host.contains('i.redd.it') ||
-        uri.host.contains('i.imgur.com') ||
-        uri.host.contains('imgur.com') ||
-        uri.host.contains('i.giphy.com') ||
-        uri.host.contains('media.giphy.com')) {
-      return true;
+    // Exact-host suffix match to avoid matching e.g. "imgur.com.evil.tld".
+    // redd.it subdomains are scoped to image hosts (not v.redd.it video).
+    final host = uri.host.toLowerCase();
+    const imageHosts = [
+      'preview.redd.it',
+      'i.redd.it',
+      'imgur.com',
+      'giphy.com',
+    ];
+    for (final h in imageHosts) {
+      if (host == h || host.endsWith('.$h')) return true;
     }
 
     // Check file extension for direct image URLs
@@ -41,6 +44,7 @@ class UrlUtils {
     RegExp(r'youtu\.be/([^?]+)'),
     RegExp(r'youtube\.com/embed/([^?]+)'),
     RegExp(r'youtube\.com/v/([^?]+)'),
+    RegExp(r'youtube\.com/shorts/([^?/]+)'),
   ];
 
   static String? extractYoutubeId(String url) {

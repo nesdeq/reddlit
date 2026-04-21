@@ -152,6 +152,10 @@ class AppTheme {
         fontSize: 13, fontWeight: FontWeight.w500, letterSpacing: -0.1,
         color: secondaryColor, height: 1.2,
       ),
+      labelSmall: GoogleFonts.inter(
+        fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: -0.05,
+        color: secondaryColor, height: 1.2,
+      ),
     );
   }
 

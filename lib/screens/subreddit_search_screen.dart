@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:provider/provider.dart';
 import '../models/subreddit.dart';
 import '../services/reddit_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
+import '../theme/theme_provider.dart';
 import '../utils/format_utils.dart';
+import '../utils/haptics.dart';
 import '../utils/navigation_helper.dart';
 import '../widgets/loading_widgets.dart';
 
@@ -63,10 +66,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
     final colors = ThemeHelper(context);
 
     return Scaffold(
-      backgroundColor: colors.backgroundColor,
-      appBar: AppBar(
-        title: const Text('Search Subreddits'),
-      ),
+      appBar: AppBar(title: const Text('Search Subreddits')),
       body: Column(
         children: [
           // Search input
@@ -108,9 +108,10 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                 // Auto-search after 1 second of no typing
                 _debounceTimer?.cancel();
                 if (value.trim().isNotEmpty) {
-                  _debounceTimer = Timer(const Duration(seconds: 1), () {
-                    _performSearch(value);
-                  });
+                  _debounceTimer = Timer(
+                    const Duration(milliseconds: 400),
+                    () => _performSearch(value),
+                  );
                 } else {
                   setState(() {
                     _results = [];
@@ -151,6 +152,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
     }
 
     return ListView.builder(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: _results.length,
       itemBuilder: (context, index) {
         final subreddit = _results[index];
@@ -160,6 +162,10 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
   }
 
   Widget _buildSubredditTile(Subreddit subreddit, ThemeHelper colors) {
+    final isFavorite = context.watch<ThemeProvider>().isFavorite(
+      subreddit.displayName,
+    );
+
     return InkWell(
       onTap: () {
         Navigator.pop(context);
@@ -241,10 +247,18 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
               ),
             ),
 
-            // Chevron
-            Icon(
-              Icons.chevron_right_rounded,
-              color: colors.textTertiary,
+            IconButton(
+              icon: Icon(
+                isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                color: isFavorite ? colors.accentColor : colors.textSecondary,
+              ),
+              tooltip: isFavorite ? 'Unfavorite' : 'Favorite',
+              onPressed: () {
+                Haptics.lightImpact();
+                context.read<ThemeProvider>().toggleFavorite(
+                  subreddit.displayName,
+                );
+              },
             ),
           ],
         ),

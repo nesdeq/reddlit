@@ -35,6 +35,8 @@ class ReddlitApp extends StatelessWidget {
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
           themeMode: themeProvider.themeMode,
+          themeAnimationDuration: const Duration(milliseconds: 320),
+          themeAnimationCurve: Curves.easeOutCubic,
           debugShowCheckedModeBanner: false,
           home: const HomeScreen(),
         );

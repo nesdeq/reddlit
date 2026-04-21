@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/reddit_user.dart';
 import '../models/reddit_post.dart';
 import '../services/reddit_service.dart';
@@ -7,7 +8,9 @@ import '../widgets/loading_widgets.dart';
 import '../widgets/post_list_mixin.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
+import '../theme/theme_provider.dart';
 import '../utils/format_utils.dart';
+import '../utils/haptics.dart';
 import '../utils/navigation_helper.dart';
 
 class UserProfileScreen extends StatefulWidget {
@@ -31,32 +34,46 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
   @override
   void initState() {
     super.initState();
+    // Seed from cache synchronously — repeat visits show the profile
+    // instantly with no spinner.
+    final cachedUser = _redditService.peekUserInfo(widget.username);
+    if (cachedUser != null) {
+      _user = cachedUser;
+      _isLoadingUser = false;
+    }
     _loadUserInfo();
     loadPosts();
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) async {
-    return await _redditService.getUserPosts(widget.username, after: after);
+  Future<List<RedditPost>> loadPostsImplementation({
+    String? after,
+    void Function(List<RedditPost>)? onRefresh,
+  }) {
+    return _redditService.getUserPosts(
+      widget.username,
+      after: after,
+      onRefresh: onRefresh,
+    );
   }
 
+  @override
+  List<RedditPost>? peekCachedPosts() =>
+      _redditService.peekUserPosts(widget.username);
+
   Future<void> _loadUserInfo() async {
+    final user = await _redditService.getUserInfo(
+      widget.username,
+      onRefresh: (fresh) {
+        if (!mounted) return;
+        setState(() => _user = fresh);
+      },
+    );
+    if (!mounted) return;
     setState(() {
-      _isLoadingUser = true;
+      _user = user;
+      _isLoadingUser = false;
     });
-
-    try {
-      final user = await _redditService.getUserInfo(widget.username);
-
-      setState(() {
-        _user = user;
-        _isLoadingUser = false;
-      });
-    } catch (_) {
-      setState(() {
-        _isLoadingUser = false;
-      });
-    }
   }
 
   @override
@@ -64,9 +81,29 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
     final colors = ThemeHelper(context);
 
     return Scaffold(
-      backgroundColor: colors.backgroundColor,
       appBar: AppBar(
-        title: Text('u/${widget.username}'),
+        title: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: scrollToTop,
+          child: Text('u/${widget.username}'),
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(
+              context.watch<ThemeProvider>().isFavoriteUser(widget.username)
+                  ? Icons.star_rounded
+                  : Icons.star_outline_rounded,
+            ),
+            onPressed: () {
+              Haptics.lightImpact();
+              context.read<ThemeProvider>().toggleFavoriteUser(
+                widget.username,
+              );
+            },
+            tooltip: 'Favorite',
+          ),
+          const SizedBox(width: AppTheme.spacing1),
+        ],
       ),
       body: _isLoadingUser
           ? LoadingWidgets.loadingIndicator(context)

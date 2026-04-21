@@ -127,6 +127,7 @@ class ContentWidgets {
     VoidCallback? onAuthorTap,
   }) {
     final colors = ThemeHelper(context);
+    final label = colors.theme.textTheme.labelMedium;
 
     return Row(
       children: [
@@ -134,48 +135,44 @@ class ContentWidgets {
           onTap: onSubredditTap,
           child: Text(
             'r/$subreddit',
-            style: colors.theme.textTheme.labelMedium?.copyWith(
+            style: label?.copyWith(
               color: colors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
           ),
         ),
-        const SizedBox(width: AppTheme.spacing2),
-        Text(
-          '•',
-          style: colors.theme.textTheme.labelMedium?.copyWith(
-            color: colors.textTertiary,
-          ),
-        ),
-        const SizedBox(width: AppTheme.spacing2),
+        bullet(colors),
         GestureDetector(
           onTap: onAuthorTap,
           child: Text(
             'u/$author',
-            style: colors.theme.textTheme.labelMedium?.copyWith(
-              color: colors.textSecondary,
-            ),
+            style: label?.copyWith(color: colors.textSecondary),
           ),
         ),
-        const SizedBox(width: AppTheme.spacing2),
-        Text(
-          '•',
-          style: colors.theme.textTheme.labelMedium?.copyWith(
-            color: colors.textTertiary,
-          ),
-        ),
-        const SizedBox(width: AppTheme.spacing2),
-        Text(
-          timeAgo,
-          style: colors.theme.textTheme.labelMedium?.copyWith(
-            color: colors.textTertiary,
-          ),
-        ),
+        bullet(colors),
+        Text(timeAgo, style: label?.copyWith(color: colors.textTertiary)),
       ],
     );
   }
 
-  /// Cached network image with consistent placeholder and error handling
+  /// Bulleted separator ( • ) with horizontal spacing, used between inline
+  /// metadata items. Public so other metadata rows (comment header, etc.)
+  /// stay visually aligned.
+  static Widget bullet(ThemeHelper colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing2),
+      child: Text(
+        '•',
+        style: colors.theme.textTheme.labelMedium?.copyWith(
+          color: colors.textTertiary,
+        ),
+      ),
+    );
+  }
+
+  /// Cached network image with consistent placeholder and error handling.
+  /// Caps in-memory decode size at screen-width × devicePixelRatio to keep
+  /// feed thumbnails from holding full-resolution bitmaps in RAM.
   static Widget cachedImage({
     required BuildContext context,
     required String imageUrl,
@@ -184,10 +181,14 @@ class ContentWidgets {
     BorderRadius? borderRadius,
   }) {
     final colors = ThemeHelper(context);
+    final media = MediaQuery.of(context);
+    final memCacheWidth = (media.size.width * media.devicePixelRatio).round();
 
     Widget imageWidget = CachedNetworkImage(
       imageUrl: imageUrl,
       fit: fit,
+      memCacheWidth: memCacheWidth,
+      maxWidthDiskCache: memCacheWidth,
       placeholder: (context, url) => Container(
         color: colors.dividerColor,
         child: Center(

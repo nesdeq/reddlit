@@ -1,10 +1,10 @@
 # Reddlit
 
-A minimalist Reddit reader with AI-powered article summarization (optional). Written over a weekend with Claude Code. Share, fork, use. 
+A minimalist Reddit reader with AI-powered article summarization (optional). Written over a weekend with Claude Code. Share, fork, use.
 
-Pure lurking, no account/official API support.
+Pure lurking, no account / official API support.
 
-Primarily written for Android but should compile for Web, Linux, Windows, macOS and i(pad)OS.
+Targets Android. The Dart code is platform-agnostic — if you want iOS / macOS / Linux / Windows / Web, run `flutter create .` in the repo root to regenerate the platform folders and go from there.
 
 ## Features
 
