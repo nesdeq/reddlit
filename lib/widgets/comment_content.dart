@@ -165,7 +165,7 @@ class CustomImageBuilder extends MarkdownElementBuilder {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          Icons.image_not_supported_outlined,
+                          Icons.image_not_supported_rounded,
                           color: colors.textTertiary,
                           size: 32,
                         ),

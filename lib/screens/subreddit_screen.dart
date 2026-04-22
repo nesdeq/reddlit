@@ -32,16 +32,12 @@ class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({
-    String? after,
-    void Function(List<RedditPost>)? onRefresh,
-  }) {
+  Future<List<RedditPost>> loadPostsImplementation({String? after}) {
     return _redditService.getSubredditPosts(
       widget.subreddit,
       sort: _currentSort,
       after: after,
       topTime: _currentTopTime,
-      onRefresh: onRefresh,
     );
   }
 

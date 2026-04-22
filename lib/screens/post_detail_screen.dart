@@ -26,51 +26,23 @@ class PostDetailScreen extends StatefulWidget {
 }
 
 class _PostDetailScreenState extends State<PostDetailScreen> {
-  /// Max rounds of recursive `more` expansion. Each round walks the current
-  /// tree for outstanding placeholders; within a round, placeholders are
-  /// fetched sequentially so we never storm reddit.com — the pipeline's
-  /// spacing/retry keeps us under throttle.
-  static const _kMaxExpansionRounds = 3;
-
   final RedditService _redditService = RedditService();
   final ScrollController _scrollController = ScrollController();
 
-  /// Full tree (may contain `more` placeholders while expansion is running).
   List<RedditComment> _tree = const [];
-
-  /// What the UI actually renders — placeholders filtered out. Recomputed
-  /// only when [_tree] changes via [_setTree], not on every build.
-  List<RedditComment> _visibleComments = const [];
-
   bool _isLoading = false;
   String _commentSort = SortConstants.confidence;
-
-  /// Bumped on every load cycle — guards async resolution of [getComments]
-  /// and its [onRefresh] callback so a sort change discards stale results.
   int _loadToken = 0;
-
-  /// Bumped on every call to [_expandInBackground] — lets a fresh tree
-  /// (from SWR refresh or a new load) preempt an in-flight expansion.
-  int _expansionToken = 0;
-
-  void _setTree(List<RedditComment> tree) {
-    _tree = tree;
-    _visibleComments = _stripPlaceholders(tree);
-  }
 
   @override
   void initState() {
     super.initState();
-    // Seed from cache synchronously — prefetch on tap + SWR means the
-    // detail screen almost always opens with comments already warm.
-    // Expansion is not kicked off here; _loadComments runs it off the
-    // freshest value (which may come from cache or an in-flight fetch).
     final cached = _redditService.peekComments(
       widget.post.subreddit,
       widget.post.id,
       sort: _commentSort,
     );
-    if (cached != null) _setTree(cached);
+    if (cached != null) _tree = cached;
     _loadComments();
   }
 
@@ -90,90 +62,51 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _loadComments() async {
-    final loadToken = ++_loadToken;
+    final token = ++_loadToken;
     setState(() => _isLoading = _tree.isEmpty);
     try {
       final raw = await _redditService.getComments(
         widget.post.subreddit,
         widget.post.id,
         sort: _commentSort,
-        onRefresh: (fresh) {
-          if (!mounted || loadToken != _loadToken) return;
-          setState(() => _setTree(fresh));
-          _expandInBackground(fresh);
-        },
       );
-      if (!mounted || loadToken != _loadToken) return;
+      if (!mounted || token != _loadToken) return;
       setState(() {
-        _setTree(raw);
+        _tree = raw;
         _isLoading = false;
       });
-      _expandInBackground(raw);
     } catch (_) {
-      if (!mounted || loadToken != _loadToken) return;
+      if (!mounted || token != _loadToken) return;
       setState(() => _isLoading = false);
-      // Cached tree (if any) stays visible; nothing more to do.
     }
   }
 
   void _changeCommentSort(String sort) {
     setState(() {
       _commentSort = sort;
-      _setTree(const []);
+      _tree = const [];
     });
     _loadComments();
   }
 
-  /// Expand `more` placeholders one at a time, updating state after each so
-  /// the user watches the tree fill in. Bumping [_expansionToken] on entry
-  /// means a subsequent call (from SWR refresh or a sort change) preempts
-  /// the one in flight — no two expanders stomp each other.
-  Future<void> _expandInBackground(List<RedditComment> initial) async {
-    final token = ++_expansionToken;
-    var tree = initial;
-    for (var round = 0; round < _kMaxExpansionRounds; round++) {
-      if (token != _expansionToken) return;
-      final placeholders = _findPlaceholders(tree);
-      if (placeholders.isEmpty) break;
-      for (final p in placeholders) {
-        if (!mounted || token != _expansionToken) return;
-        final fetched = await _redditService.loadMoreComments(
-          linkId: 't3_${widget.post.id}',
-          childIds: p.moreChildrenIds,
-          sort: _commentSort,
-        );
-        if (!mounted || token != _expansionToken) return;
-        tree = _mergeMoreReplies(tree, p, fetched);
-        setState(() => _setTree(tree));
-      }
-    }
+  Future<void> _onMoreTap(RedditComment placeholder) async {
+    final token = _loadToken;
+    final fetched = await _redditService.loadMoreComments(
+      linkId: 't3_${widget.post.id}',
+      childIds: placeholder.moreChildrenIds,
+      sort: _commentSort,
+    );
+    if (!mounted || token != _loadToken) return;
+    final merged = _mergeMoreReplies(_tree, placeholder, fetched);
+    setState(() => _tree = merged);
+    _redditService.cacheExpandedComments(
+      widget.post.subreddit,
+      widget.post.id,
+      _commentSort,
+      merged,
+    );
   }
 
-  List<RedditComment> _findPlaceholders(List<RedditComment> tree) {
-    final found = <RedditComment>[];
-    void walk(List<RedditComment> list) {
-      for (final c in list) {
-        if (c.isMorePlaceholder && c.moreChildrenIds.isNotEmpty) {
-          found.add(c);
-        } else {
-          walk(c.replies);
-        }
-      }
-    }
-
-    walk(tree);
-    return found;
-  }
-
-  List<RedditComment> _stripPlaceholders(List<RedditComment> tree) {
-    return tree
-        .where((c) => !c.isMorePlaceholder)
-        .map((c) => c.copyWith(replies: _stripPlaceholders(c.replies)))
-        .toList();
-  }
-
-  /// Rebuild the tree with [placeholder] replaced by a sub-tree assembled
-  /// from [fetched] (flat list grouped by parent_id).
   List<RedditComment> _mergeMoreReplies(
     List<RedditComment> tree,
     RedditComment placeholder,
@@ -219,7 +152,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final visibleComments = _visibleComments;
+    final tree = _tree;
 
     return Scaffold(
       appBar: AppBar(
@@ -304,7 +237,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
             ),
             const SizedBox(height: AppTheme.spacing4),
 
-            if (visibleComments.isNotEmpty)
+            if (tree.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   AppTheme.spacing4,
@@ -340,16 +273,18 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 ),
               ),
 
-            if (_isLoading && visibleComments.isEmpty)
+            if (_isLoading && tree.isEmpty)
               LoadingWidgets.loadingIndicatorPadded(context)
-            else if (visibleComments.isEmpty)
+            else if (tree.isEmpty)
               LoadingWidgets.emptyState(context, 'No comments yet')
             else
-              ...visibleComments.map(
+              ...tree.map(
                 (comment) => CommentTile(
+                  key: ValueKey(comment.id),
                   comment: comment,
                   onAuthorTap: (username) =>
                       NavigationHelper.navigateToUser(context, username),
+                  onLoadMore: _onMoreTap,
                 ),
               ),
           ],

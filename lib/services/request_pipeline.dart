@@ -20,8 +20,8 @@ class RequestPipeline {
   RequestPipeline._();
   static final RequestPipeline instance = RequestPipeline._();
 
-  static const int _maxConcurrent = 3;
-  static const Duration _minGap = Duration(milliseconds: 250);
+  static const int _maxConcurrent = 2;
+  static const Duration _minGap = Duration(milliseconds: 2000);
   static const int _maxRetries = 3;
   static const Duration _backoffBase = Duration(milliseconds: 800);
   static const int _jitterMaxMs = 300;
@@ -70,9 +70,8 @@ class RequestPipeline {
         }
       }
       final transient =
-          response.statusCode == 429 ||
-          response.statusCode == 503 ||
           response.statusCode == 502 ||
+          response.statusCode == 503 ||
           response.statusCode == 504;
       if (!transient) return null;
       if (attempt == _maxRetries) return null;

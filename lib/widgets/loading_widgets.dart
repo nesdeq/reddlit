@@ -48,16 +48,15 @@ class LoadingWidgets {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
-            Icons.error_outline,
+            Icons.error_outline_rounded,
             color: colors.textTertiary,
             size: 48,
           ),
           const SizedBox(height: AppTheme.spacing2),
           Text(
             'Failed to load video',
-            style: TextStyle(
+            style: colors.theme.textTheme.bodySmall?.copyWith(
               color: colors.textSecondary,
-              fontSize: 14,
             ),
           ),
         ],

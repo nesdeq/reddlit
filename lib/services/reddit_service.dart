@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../models/reddit_post.dart';
 import '../models/reddit_comment.dart';
 import '../models/reddit_user.dart';
@@ -8,55 +6,36 @@ import '../constants/sort_constants.dart';
 import 'reddit_cache.dart';
 import 'request_pipeline.dart';
 
-/// Thin wrapper around reddit.com's public JSON endpoints.
-///
-/// All reads go through [RequestPipeline] (throttled, deduped, retrying) and
-/// [RedditCache] (stale-while-revalidate). Every read method accepts an
-/// optional `onRefresh` callback that fires when a stale response has been
-/// quietly replaced by a fresh one in the background — this is how screens
-/// update without ever showing a spinner on repeat visits.
-///
-/// Terminal failures return empty values; callers render an empty/error state
-/// of their choosing.
 class RedditService {
   RedditService._internal();
   static final RedditService _instance = RedditService._internal();
   factory RedditService() => _instance;
 
+  static const String _host = 'www.reddit.com';
+
   Future<List<RedditPost>> getFrontpage({
     String sort = SortConstants.hot,
     String? after,
     String? topTime,
-    void Function(List<RedditPost>)? onRefresh,
-  }) => _fetchPosts(
-    path: '',
-    sort: sort,
-    after: after,
-    topTime: topTime,
-    onRefresh: onRefresh,
-  );
+  }) => _fetchPosts(path: '', sort: sort, after: after, topTime: topTime);
 
   Future<List<RedditPost>> getSubredditPosts(
     String subreddit, {
     String sort = SortConstants.hot,
     String? after,
     String? topTime,
-    void Function(List<RedditPost>)? onRefresh,
   }) => _fetchPosts(
     path: '/r/$subreddit',
     sort: sort,
     after: after,
     topTime: topTime,
-    onRefresh: onRefresh,
   );
 
-  /// Fetch posts from multiple subreddits via Reddit's `r/a+b+c` syntax.
   Future<List<RedditPost>> getPersonalPosts(
     List<String> subreddits, {
     String sort = SortConstants.hot,
     String? after,
     String? topTime,
-    void Function(List<RedditPost>)? onRefresh,
   }) {
     if (subreddits.isEmpty) return Future.value(const []);
     return _fetchPosts(
@@ -64,48 +43,77 @@ class RedditService {
       sort: sort,
       after: after,
       topTime: topTime,
-      onRefresh: onRefresh,
     );
   }
 
   Future<List<RedditPost>> getUserPosts(
     String username, {
     String? after,
-    void Function(List<RedditPost>)? onRefresh,
+    String? sort,
+    String? topTime,
   }) => _withCache<List<RedditPost>>(
     bucket: CacheBucket.postList,
-    uri: _userPostsUri(username, after: after),
+    uri: _userPostsUri(
+      username,
+      after: after,
+      sort: sort,
+      topTime: topTime,
+    ),
     parse: _parsePosts,
-    onRefresh: onRefresh,
   );
+
+  Future<List<RedditPost>> getFollowingPosts(
+    List<String> usernames, {
+    String sort = SortConstants.newSort,
+    String? topTime,
+  }) async {
+    if (usernames.isEmpty) return const [];
+    final results = await Future.wait(
+      usernames.map(
+        (u) => getUserPosts(u, sort: sort, topTime: topTime)
+            .catchError((_) => const <RedditPost>[]),
+      ),
+    );
+    return _mergePosts(results, sort);
+  }
+
+  List<RedditPost> _mergePosts(List<List<RedditPost>> streams, String sort) {
+    final seen = <String>{};
+    final merged = <RedditPost>[];
+    for (final s in streams) {
+      for (final p in s) {
+        if (seen.add(p.id)) merged.add(p);
+      }
+    }
+    if (sort == SortConstants.newSort) {
+      merged.sort((a, b) => b.created.compareTo(a.created));
+    } else {
+      merged.sort((a, b) => b.score.compareTo(a.score));
+    }
+    return merged;
+  }
 
   Future<List<RedditPost>> _fetchPosts({
     required String path,
     required String sort,
     String? after,
     String? topTime,
-    void Function(List<RedditPost>)? onRefresh,
   }) => _withCache<List<RedditPost>>(
     bucket: CacheBucket.postList,
     uri: _postsUri(path, sort: sort, after: after, topTime: topTime),
     parse: _parsePosts,
-    onRefresh: onRefresh,
   );
 
   Future<List<RedditComment>> getComments(
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
-    void Function(List<RedditComment>)? onRefresh,
   }) => _withCache<List<RedditComment>>(
     bucket: CacheBucket.comments,
     uri: _commentsUri(subreddit, postId, sort: sort),
     parse: _parseCommentListing,
-    onRefresh: onRefresh,
   );
 
-  /// Expand one `more` placeholder. Not cached — each placeholder is fetched
-  /// at most once per app session via pipeline dedup on the URL.
   Future<List<RedditComment>> loadMoreComments({
     required String linkId,
     required List<String> childIds,
@@ -128,25 +136,18 @@ class RedditService {
         .toList();
   }
 
-  Future<RedditUser> getUserInfo(
-    String username, {
-    void Function(RedditUser)? onRefresh,
-  }) async {
+  Future<RedditUser> getUserInfo(String username) async {
     try {
       return await _withCache<RedditUser>(
         bucket: CacheBucket.userInfo,
         uri: _userInfoUri(username),
         parse: (body) => RedditUser.fromJson(body as Map<String, dynamic>),
-        onRefresh: onRefresh,
       );
     } on RedditServiceException {
-      // User info is non-critical header metadata — fall back to an empty
-      // shell so the posts list below still renders.
       return RedditUser.empty(username);
     }
   }
 
-  /// Search for subreddits whose NAME contains [query], sorted by subscribers.
   Future<List<Subreddit>> searchSubreddits(String query) {
     final uri = Uri.https(_host, '/subreddits/search.json', {
       'q': query,
@@ -168,13 +169,8 @@ class RedditService {
         subs.sort((a, b) => b.subscribers.compareTo(a.subscribers));
         return subs;
       },
-      onRefresh: null,
     );
   }
-
-  // ------------- Synchronous cache peeks -------------
-  // Used by screens to seed state from cache before the first frame, so
-  // repeat visits never show a spinner.
 
   List<RedditPost>? peekFrontpage({
     String sort = SortConstants.hot,
@@ -200,10 +196,24 @@ class RedditService {
     );
   }
 
-  List<RedditPost>? peekUserPosts(String username) => _peek<List<RedditPost>>(
-    CacheBucket.postList,
-    _userPostsUri(username),
-  );
+  List<RedditPost>? peekUserPosts(String username) =>
+      _peek<List<RedditPost>>(CacheBucket.postList, _userPostsUri(username));
+
+  List<RedditPost>? peekFollowingPosts(
+    List<String> usernames, {
+    String sort = SortConstants.newSort,
+    String? topTime,
+  }) {
+    if (usernames.isEmpty) return null;
+    final streams = <List<RedditPost>>[];
+    for (final u in usernames) {
+      final uri = _userPostsUri(u, sort: sort, topTime: topTime);
+      final cached = _peek<List<RedditPost>>(CacheBucket.postList, uri);
+      if (cached != null) streams.add(cached);
+    }
+    if (streams.isEmpty) return null;
+    return _mergePosts(streams, sort);
+  }
 
   RedditUser? peekUserInfo(String username) =>
       _peek<RedditUser>(CacheBucket.userInfo, _userInfoUri(username));
@@ -227,41 +237,7 @@ class RedditService {
   );
 
   T? _peek<T>(CacheBucket bucket, Uri uri) =>
-      RedditCache.instance.lookup<T>(bucket, uri.toString())?.value;
-
-  // ------------- Prefetch hooks (fire-and-forget) -------------
-  // All prefetches swallow failures — a warm-cache optimization has no
-  // business bubbling errors up as unhandled async exceptions.
-
-  void prefetchComments(String subreddit, String postId) {
-    _fireAndForget(getComments(subreddit, postId));
-  }
-
-  void prefetchSubredditPosts(String subreddit) {
-    _fireAndForget(getSubredditPosts(subreddit));
-  }
-
-  void prefetchUserInfo(String username) {
-    _fireAndForget(getUserInfo(username));
-  }
-
-  void prefetchUserPosts(String username) {
-    _fireAndForget(getUserPosts(username));
-  }
-
-  void _fireAndForget(Future<Object?> future) {
-    // `then<void>(...)` gives us a Future<void> whose onError returns void —
-    // unlike catchError, which requires returning the ORIGINAL future's type
-    // and would throw TypeError when returning null for a Future<List<X>>.
-    unawaited(future.then<void>((_) {}, onError: (_) {}));
-  }
-
-  // ------------- URI builders -------------
-  // Every endpoint has exactly one URL shape shared between its fetch and
-  // peek paths, so the cache key generated by `_withCache` and the key
-  // checked by `peek*` can never drift.
-
-  static const String _host = 'www.reddit.com';
+      RedditCache.instance.lookup<T>(bucket, uri.toString());
 
   Uri _postsUri(
     String path, {
@@ -279,11 +255,22 @@ class RedditService {
     );
   }
 
-  Uri _userPostsUri(String username, {String? after}) => Uri.https(
-    _host,
-    '/user/$username/submitted.json',
-    after != null ? {'after': after} : null,
-  );
+  Uri _userPostsUri(
+    String username, {
+    String? after,
+    String? sort,
+    String? topTime,
+  }) {
+    final params = <String, String>{};
+    if (after != null) params['after'] = after;
+    if (sort != null) params['sort'] = sort;
+    if (sort == SortConstants.top && topTime != null) params['t'] = topTime;
+    return Uri.https(
+      _host,
+      '/user/$username/submitted.json',
+      params.isNotEmpty ? params : null,
+    );
+  }
 
   Uri _userInfoUri(String username) =>
       Uri.https(_host, '/user/$username/about.json');
@@ -291,34 +278,17 @@ class RedditService {
   Uri _commentsUri(String subreddit, String postId, {required String sort}) =>
       Uri.https(_host, '/r/$subreddit/comments/$postId.json', {'sort': sort});
 
-  // ------------- Internals -------------
-
   Future<T> _withCache<T>({
     required CacheBucket bucket,
     required Uri uri,
     required T Function(dynamic body) parse,
-    required void Function(T)? onRefresh,
   }) async {
     final key = uri.toString();
-    final hit = RedditCache.instance.lookup<T>(bucket, key);
-
-    if (hit != null) {
-      if (hit.isStale) {
-        // Background refresh failures are silent — cached value stays visible.
-        RedditCache.instance.backgroundRefresh<T>(
-          key,
-          () => _fetchAndParse<T>(uri, parse),
-          onRefresh,
-        );
-      }
-      return hit.value;
-    }
+    final cached = RedditCache.instance.lookup<T>(bucket, key);
+    if (cached != null) return cached;
 
     final fresh = await _fetchAndParse<T>(uri, parse);
     if (fresh == null) {
-      // Hard failure on a cold read — throw so the UI can show a real error
-      // state with a retry affordance, rather than rendering an empty list
-      // indistinguishable from "nothing to see here."
       throw const RedditServiceException('Network request failed.');
     }
     RedditCache.instance.put(key, fresh as Object);
@@ -352,11 +322,20 @@ class RedditService {
         .map((c) => RedditComment.fromJson(c as Map<String, dynamic>))
         .toList();
   }
+
+  void cacheExpandedComments(
+    String subreddit,
+    String postId,
+    String sort,
+    List<RedditComment> tree,
+  ) {
+    RedditCache.instance.put(
+      _commentsUri(subreddit, postId, sort: sort).toString(),
+      tree,
+    );
+  }
 }
 
-/// Thrown by [RedditService] when a cold read ultimately fails — all pipeline
-/// retries exhausted, no cache to fall back on. Callers catch this to show
-/// an error state instead of rendering empty content as if it were success.
 class RedditServiceException implements Exception {
   final String message;
   const RedditServiceException(this.message);

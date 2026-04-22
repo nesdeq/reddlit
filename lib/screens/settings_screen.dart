@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../theme/theme_provider.dart';
+import '../widgets/loading_widgets.dart';
 import '../widgets/modal_widgets.dart';
 import '../utils/haptics.dart';
 import '../constants/app_constants.dart';
@@ -78,33 +79,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showFavoritesManager() {
-    final colors = ThemeHelper(context);
-    final provider = context.read<ThemeProvider>();
-    final subs = provider.favoriteSubreddits.toList()..sort();
-    final users = provider.favoriteUsers.toList()..sort();
-
     ModalWidgets.showBottomSheetModal(
       context: context,
-      children: [
-        _FavoritesSection(
-          title: 'Subreddits',
-          emptyLabel: 'No favorite subreddits yet',
-          entries: subs,
-          prefix: 'r/',
-          onRemove: provider.toggleFavorite,
-          colors: colors,
-        ),
-        if (users.isNotEmpty || subs.isNotEmpty)
-          const SizedBox(height: AppTheme.spacing4),
-        _FavoritesSection(
-          title: 'Users',
-          emptyLabel: 'No favorite users yet',
-          entries: users,
-          prefix: 'u/',
-          onRemove: provider.toggleFavoriteUser,
-          colors: colors,
-        ),
-      ],
+      children: const [_FavoritesManagerBody()],
     );
   }
 
@@ -221,7 +198,6 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = ThemeHelper(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppTheme.spacing4,
@@ -229,74 +205,108 @@ class _SectionHeader extends StatelessWidget {
         AppTheme.spacing4,
         AppTheme.spacing2,
       ),
-      child: Text(
-        title.toUpperCase(),
-        style: colors.theme.textTheme.labelMedium?.copyWith(
-          color: colors.textSecondary,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-      ),
+      child: Text(title.toUpperCase(), style: _sectionHeaderStyle(context)),
     );
   }
 }
 
-class _FavoritesSection extends StatelessWidget {
+TextStyle _sectionHeaderStyle(BuildContext context) {
+  final colors = ThemeHelper(context);
+  return colors.theme.textTheme.labelSmall!.copyWith(
+    color: colors.textSecondary,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.5,
+  );
+}
+
+class _FavoritesManagerBody extends StatelessWidget {
+  const _FavoritesManagerBody();
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<ThemeProvider>(
+      builder: (context, provider, _) {
+        final subs = provider.favoriteSubreddits.toList()..sort();
+        final users = provider.favoriteUsers.toList()..sort();
+
+        if (subs.isEmpty && users.isEmpty) {
+          return LoadingWidgets.emptyState(context, 'No favorites yet');
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (subs.isNotEmpty)
+              _FavoritesGroup(
+                title: 'Subreddits',
+                entries: subs,
+                prefix: 'r/',
+                onRemove: provider.toggleFavorite,
+              ),
+            if (subs.isNotEmpty && users.isNotEmpty)
+              const SizedBox(height: AppTheme.spacing5),
+            if (users.isNotEmpty)
+              _FavoritesGroup(
+                title: 'Users',
+                entries: users,
+                prefix: 'u/',
+                onRemove: provider.toggleFavoriteUser,
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FavoritesGroup extends StatelessWidget {
   final String title;
-  final String emptyLabel;
   final List<String> entries;
   final String prefix;
   final Future<void> Function(String) onRemove;
-  final ThemeHelper colors;
 
-  const _FavoritesSection({
+  const _FavoritesGroup({
     required this.title,
-    required this.emptyLabel,
     required this.entries,
     required this.prefix,
     required this.onRemove,
-    required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = ThemeHelper(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
-          child: Text(
-            title,
-            style: colors.theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+          padding: const EdgeInsets.fromLTRB(
+            AppTheme.spacing4,
+            0,
+            AppTheme.spacing4,
+            AppTheme.spacing2,
           ),
+          child: Text(title.toUpperCase(), style: _sectionHeaderStyle(context)),
         ),
-        const SizedBox(height: AppTheme.spacing2),
-        if (entries.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(
+        for (var i = 0; i < entries.length; i++) ...[
+          if (i > 0) Divider(height: 1, color: colors.dividerColor),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(
               horizontal: AppTheme.spacing4,
-              vertical: AppTheme.spacing3,
             ),
-            child: Text(
-              emptyLabel,
-              style: colors.theme.textTheme.bodyMedium?.copyWith(
+            title: Text('$prefix${entries[i]}'),
+            trailing: IconButton(
+              icon: Icon(
+                Icons.delete_outline_rounded,
                 color: colors.textSecondary,
               ),
-            ),
-          )
-        else
-          ...entries.map(
-            (entry) => ListTile(
-              title: Text('$prefix$entry'),
-              trailing: IconButton(
-                icon: Icon(Icons.delete_outline, color: colors.textSecondary),
-                onPressed: () => onRemove(entry),
-              ),
+              onPressed: () {
+                Haptics.lightImpact();
+                onRemove(entries[i]);
+              },
+              tooltip: 'Remove',
             ),
           ),
+        ],
       ],
     );
   }
@@ -364,7 +374,12 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
   Future<void> _save() async {
     final key = _controller.text.trim();
     final provider = context.read<ThemeProvider>();
-    await provider.setOpenAiApiKey(key);
+    final storageError = await provider.setOpenAiApiKey(key);
+
+    if (storageError != null) {
+      _snack(storageError, background: Colors.red, seconds: 5);
+      return;
+    }
 
     if (key.isEmpty) {
       _snack('API key cleared');
@@ -441,7 +456,9 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
               focusedBorder: _border(colors.accentColor, width: 2),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _visible ? Icons.visibility_off : Icons.visibility,
+                  _visible
+                      ? Icons.visibility_off_rounded
+                      : Icons.visibility_rounded,
                   color: colors.textSecondary,
                 ),
                 onPressed: () => setState(() => _visible = !_visible),
@@ -483,8 +500,8 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
               children: [
                 Icon(
                   provider.isApiKeyValid
-                      ? Icons.check_circle
-                      : Icons.error_outline,
+                      ? Icons.check_circle_rounded
+                      : Icons.error_outline_rounded,
                   size: 16,
                   color: provider.isApiKeyValid
                       ? Colors.green

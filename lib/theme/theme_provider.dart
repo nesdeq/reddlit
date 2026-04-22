@@ -146,20 +146,25 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> setOpenAiApiKey(String key) async {
+  /// Returns null on success, or an error message if the secure write failed.
+  /// The in-memory value is always updated so validation can still proceed,
+  /// but the caller should warn the user that the key won't persist.
+  Future<String?> setOpenAiApiKey(String key) async {
     _openAiApiKey = key;
+    String? error;
     try {
       if (key.isEmpty) {
         await _secureStorage.delete(key: _kApiKeyStorage);
       } else {
         await _secureStorage.write(key: _kApiKeyStorage, value: key);
       }
-    } catch (_) {
-      // Keep in-memory value usable even if secure write fails.
+    } catch (e) {
+      error = 'Secure storage unavailable — key held in memory only: $e';
     }
     _isApiKeyValid = false;
     await _prefs?.setBool(_kApiKeyValidPref, false);
     notifyListeners();
+    return error;
   }
 
   /// Validate OpenAI API key by making a test request.

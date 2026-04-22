@@ -46,15 +46,8 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({
-    String? after,
-    void Function(List<RedditPost>)? onRefresh,
-  }) {
-    return _redditService.getUserPosts(
-      widget.username,
-      after: after,
-      onRefresh: onRefresh,
-    );
+  Future<List<RedditPost>> loadPostsImplementation({String? after}) {
+    return _redditService.getUserPosts(widget.username, after: after);
   }
 
   @override
@@ -62,13 +55,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
       _redditService.peekUserPosts(widget.username);
 
   Future<void> _loadUserInfo() async {
-    final user = await _redditService.getUserInfo(
-      widget.username,
-      onRefresh: (fresh) {
-        if (!mounted) return;
-        setState(() => _user = fresh);
-      },
-    );
+    final user = await _redditService.getUserInfo(widget.username);
     if (!mounted) return;
     setState(() {
       _user = user;

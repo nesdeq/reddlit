@@ -23,6 +23,7 @@ class AppConstants {
     ('frontpage', '/r/Frontpage'),
     ('all', '/r/All'),
     ('personal', 'Personal Selection'),
+    ('following', 'Following Users'),
   ];
 
   /// Get display label for a default subreddit value

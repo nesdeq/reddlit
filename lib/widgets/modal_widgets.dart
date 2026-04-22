@@ -78,7 +78,9 @@ class ModalWidgets {
           color: isSelected ? colors.textPrimary : colors.textSecondary,
         ),
       ),
-      trailing: isSelected ? Icon(Icons.check, color: colors.accentColor) : null,
+      trailing: isSelected
+          ? Icon(Icons.check_rounded, color: colors.accentColor)
+          : null,
       onTap: () {
         Haptics.selectionClick();
         onTap();

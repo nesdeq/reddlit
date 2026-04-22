@@ -56,49 +56,52 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({
-    String? after,
-    void Function(List<RedditPost>)? onRefresh,
-  }) async {
+  Future<List<RedditPost>> loadPostsImplementation({String? after}) async {
+    final provider = context.read<ThemeProvider>();
+    if (_currentSubreddit == 'following') {
+      if (after != null) return const [];
+      return _redditService.getFollowingPosts(
+        provider.favoriteUsers.toList(),
+        sort: _currentSort,
+        topTime: _currentTopTime,
+      );
+    }
     if (_currentSubreddit == 'personal') {
-      final favorites = context
-          .read<ThemeProvider>()
-          .favoriteSubreddits
-          .toList();
       return _redditService.getPersonalPosts(
-        favorites,
+        provider.favoriteSubreddits.toList(),
         sort: _currentSort,
         after: after,
         topTime: _currentTopTime,
-        onRefresh: onRefresh,
       );
-    } else if (_currentSubreddit != null) {
+    }
+    if (_currentSubreddit != null) {
       return _redditService.getSubredditPosts(
         _currentSubreddit!,
         sort: _currentSort,
         after: after,
         topTime: _currentTopTime,
-        onRefresh: onRefresh,
-      );
-    } else {
-      return _redditService.getFrontpage(
-        sort: _currentSort,
-        after: after,
-        topTime: _currentTopTime,
-        onRefresh: onRefresh,
       );
     }
+    return _redditService.getFrontpage(
+      sort: _currentSort,
+      after: after,
+      topTime: _currentTopTime,
+    );
   }
 
   @override
   List<RedditPost>? peekCachedPosts() {
+    final provider = context.read<ThemeProvider>();
+    if (_currentSubreddit == 'following') {
+      return _redditService.peekFollowingPosts(
+        provider.favoriteUsers.toList(),
+        sort: _currentSort,
+        topTime: _currentTopTime,
+      );
+    }
     if (_currentSubreddit == 'personal') {
-      final favorites = context
-          .read<ThemeProvider>()
-          .favoriteSubreddits
-          .toList();
       return _redditService.peekPersonalPosts(
-        favorites,
+        provider.favoriteSubreddits.toList(),
         sort: _currentSort,
         topTime: _currentTopTime,
       );

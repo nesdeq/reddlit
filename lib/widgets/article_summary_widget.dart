@@ -112,7 +112,10 @@ class ArticleSummaryWidget {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(Icons.close, color: colors.textSecondary),
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: colors.textSecondary,
+                    ),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
@@ -141,7 +144,7 @@ class ArticleSummaryWidget {
                 child: Row(
                   children: [
                     Icon(
-                      Icons.info_outline,
+                      Icons.info_outline_rounded,
                       size: 16,
                       color: colors.textSecondary,
                     ),

@@ -16,7 +16,14 @@ class ContentWidgets {
     required VoidCallback onTap,
   }) {
     final colors = ThemeHelper(context);
-    final faviconUrl = 'https://www.google.com/s2/favicons?domain=${UrlUtils.extractDomain(url, fallback: domain)}&sz=32';
+    final faviconUrl = Uri.https(
+      'www.google.com',
+      '/s2/favicons',
+      {
+        'domain': UrlUtils.extractDomain(url, fallback: domain),
+        'sz': '32',
+      },
+    ).toString();
 
     return GestureDetector(
       onTap: onTap,
@@ -205,16 +212,15 @@ class ContentWidgets {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.image_not_supported_outlined,
+                Icons.image_not_supported_rounded,
                 color: colors.textTertiary,
                 size: 48,
               ),
               const SizedBox(height: AppTheme.spacing2),
               Text(
                 'Failed to load image',
-                style: TextStyle(
+                style: colors.theme.textTheme.bodySmall?.copyWith(
                   color: colors.textTertiary,
-                  fontSize: 14,
                 ),
               ),
             ],

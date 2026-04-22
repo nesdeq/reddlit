@@ -1,5 +1,3 @@
-/// Shared realistic browser headers for all outgoing HTTP requests.
-/// Consistent across services to avoid fingerprinting inconsistencies.
 class HttpConstants {
   const HttpConstants._();
 
@@ -7,10 +5,6 @@ class HttpConstants {
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
-  /// Realistic browser headers for web requests (Reddit API, article fetching).
-  /// Note: Accept-Encoding is intentionally omitted — Dart's HTTP client
-  /// handles gzip/deflate transparently and auto-decompresses responses.
-  /// Setting it explicitly disables auto-decompression in dart:io.
   static const Map<String, String> browserHeaders = {
     'User-Agent': _userAgent,
     'Accept':

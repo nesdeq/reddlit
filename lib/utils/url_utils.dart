@@ -80,6 +80,7 @@ class UrlUtils {
   static Future<bool> openUrl(String url) async {
     try {
       final uri = Uri.parse(url);
+      if (uri.scheme != 'http' && uri.scheme != 'https') return false;
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
         return true;
