@@ -1,3 +1,6 @@
+import 'package:html/dom.dart';
+import 'package:html/parser.dart' as html_parser;
+
 import '../models/reddit_post.dart';
 import '../models/reddit_comment.dart';
 import '../models/reddit_user.dart';
@@ -6,12 +9,20 @@ import '../constants/sort_constants.dart';
 import 'reddit_cache.dart';
 import 'request_pipeline.dart';
 
+/// A parsed post page: the post enriched with selftext/gallery (absent from
+/// listings, since old.reddit lazy-loads them) plus its comment tree.
+class CommentsPage {
+  final RedditPost? post;
+  final List<RedditComment> comments;
+  const CommentsPage({this.post, this.comments = const []});
+}
+
 class RedditService {
   RedditService._internal();
   static final RedditService _instance = RedditService._internal();
   factory RedditService() => _instance;
 
-  static const String _host = 'www.reddit.com';
+  static const String _host = 'old.reddit.com';
 
   Future<List<RedditPost>> getFrontpage({
     String sort = SortConstants.hot,
@@ -104,36 +115,39 @@ class RedditService {
     parse: _parsePosts,
   );
 
-  Future<List<RedditComment>> getComments(
+  Future<CommentsPage> getComments(
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
-  }) => _withCache<List<RedditComment>>(
+  }) => _withCache<CommentsPage>(
     bucket: CacheBucket.comments,
     uri: _commentsUri(subreddit, postId, sort: sort),
-    parse: _parseCommentListing,
+    parse: (doc) => _parseCommentsPage(doc, subreddit, postId),
   );
 
+  /// Expand a "more replies" placeholder by re-fetching the parent thread's
+  /// HTML (the JSON morechildren API is blocked). Returns the freshly parsed
+  /// things at the placeholder's location — a single re-expanded parent
+  /// comment, or the full top-level list when the placeholder was post-level.
   Future<List<RedditComment>> loadMoreComments({
-    required String linkId,
-    required List<String> childIds,
+    required String permalink,
+    required String parentFullname,
     String sort = SortConstants.confidence,
   }) async {
-    if (childIds.isEmpty) return const [];
-    final uri = Uri.https(_host, '/api/morechildren.json', {
-      'api_type': 'json',
-      'link_id': linkId,
-      'children': childIds.join(','),
-      'sort': sort,
-    });
-    final body = await RequestPipeline.instance.getJson(uri);
-    if (body is! Map) return const [];
-    final things = body['json']?['data']?['things'];
-    if (things is! List) return const [];
-    return things
-        .where((c) => c['kind'] == 't1' || c['kind'] == 'more')
-        .map((c) => RedditComment.fromJson(c as Map<String, dynamic>))
-        .toList();
+    final base = Uri.parse(permalink);
+    final uri = base.replace(
+      queryParameters: {...base.queryParameters, 'sort': sort},
+    );
+    final body = await RequestPipeline.instance.getHtml(uri);
+    if (body == null) return const [];
+    try {
+      final doc = html_parser.parse(body);
+      final table = doc.querySelector('.commentarea .sitetable');
+      if (table == null) return const [];
+      return RedditComment.parseThings(table, 0, permalink, parentFullname);
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<RedditUser> getUserInfo(String username) async {
@@ -141,7 +155,7 @@ class RedditService {
       return await _withCache<RedditUser>(
         bucket: CacheBucket.userInfo,
         uri: _userInfoUri(username),
-        parse: (body) => RedditUser.fromJson(body as Map<String, dynamic>),
+        parse: (doc) => RedditUser.fromUserPage(doc, username),
       );
     } on RedditServiceException {
       return RedditUser.empty(username);
@@ -149,21 +163,16 @@ class RedditService {
   }
 
   Future<List<Subreddit>> searchSubreddits(String query) {
-    final uri = Uri.https(_host, '/subreddits/search.json', {
-      'q': query,
-      'limit': '100',
-      'include_over_18': 'on',
-    });
+    final uri = Uri.https(_host, '/subreddits/search', {'q': query});
     final queryLower = query.toLowerCase();
     return _withCache<List<Subreddit>>(
       bucket: CacheBucket.subredditSearch,
       uri: uri,
-      parse: (body) {
-        final map = body as Map<String, dynamic>;
-        final children = map['data']['children'] as List;
-        final subs = children
-            .where((c) => c['kind'] == 't5')
-            .map((c) => Subreddit.fromJson(c as Map<String, dynamic>))
+      parse: (doc) {
+        final subs = doc
+            .querySelectorAll('div.thing.subreddit')
+            .map(Subreddit.fromThing)
+            .where((s) => s.displayName.isNotEmpty)
             .where((s) => s.displayName.toLowerCase().contains(queryLower))
             .toList();
         subs.sort((a, b) => b.subscribers.compareTo(a.subscribers));
@@ -218,11 +227,11 @@ class RedditService {
   RedditUser? peekUserInfo(String username) =>
       _peek<RedditUser>(CacheBucket.userInfo, _userInfoUri(username));
 
-  List<RedditComment>? peekComments(
+  CommentsPage? peekComments(
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
-  }) => _peek<List<RedditComment>>(
+  }) => _peek<CommentsPage>(
     CacheBucket.comments,
     _commentsUri(subreddit, postId, sort: sort),
   );
@@ -250,7 +259,7 @@ class RedditService {
     if (sort == SortConstants.top && topTime != null) params['t'] = topTime;
     return Uri.https(
       _host,
-      '$path/$sort.json',
+      '$path/$sort/',
       params.isNotEmpty ? params : null,
     );
   }
@@ -267,21 +276,21 @@ class RedditService {
     if (sort == SortConstants.top && topTime != null) params['t'] = topTime;
     return Uri.https(
       _host,
-      '/user/$username/submitted.json',
+      '/user/$username/submitted/',
       params.isNotEmpty ? params : null,
     );
   }
 
   Uri _userInfoUri(String username) =>
-      Uri.https(_host, '/user/$username/about.json');
+      Uri.https(_host, '/user/$username/');
 
   Uri _commentsUri(String subreddit, String postId, {required String sort}) =>
-      Uri.https(_host, '/r/$subreddit/comments/$postId.json', {'sort': sort});
+      Uri.https(_host, '/r/$subreddit/comments/$postId/', {'sort': sort});
 
   Future<T> _withCache<T>({
     required CacheBucket bucket,
     required Uri uri,
-    required T Function(dynamic body) parse,
+    required T Function(Document doc) parse,
   }) async {
     final key = uri.toString();
     final cached = RedditCache.instance.lookup<T>(bucket, key);
@@ -295,43 +304,55 @@ class RedditService {
     return fresh;
   }
 
-  Future<T?> _fetchAndParse<T>(Uri uri, T Function(dynamic body) parse) async {
-    final body = await RequestPipeline.instance.getJson(uri);
+  Future<T?> _fetchAndParse<T>(Uri uri, T Function(Document doc) parse) async {
+    final body = await RequestPipeline.instance.getHtml(uri);
     if (body == null) return null;
     try {
-      return parse(body);
+      return parse(html_parser.parse(body));
     } catch (_) {
       return null;
     }
   }
 
-  List<RedditPost> _parsePosts(dynamic body) {
-    final map = body as Map<String, dynamic>;
-    final children = map['data']['children'] as List;
-    return children
-        .where((c) => c['kind'] == 't3')
-        .map((c) => RedditPost.fromJson(c as Map<String, dynamic>))
+  /// Parse a listing page (`#siteTable`) into posts, skipping promoted ads and
+  /// non-link things (subreddit announcement rows, etc.).
+  List<RedditPost> _parsePosts(Document doc) {
+    final table = doc.getElementById('siteTable');
+    if (table == null) return const [];
+    return table.children
+        .where((e) => e.classes.contains('thing'))
+        .where((e) => (e.attributes['data-fullname'] ?? '').startsWith('t3_'))
+        .where((e) => e.attributes['data-promoted'] != 'true')
+        .map(RedditPost.fromThing)
         .toList();
   }
 
-  List<RedditComment> _parseCommentListing(dynamic body) {
-    if (body is! List || body.length < 2) return const [];
-    final children = body[1]['data']['children'] as List;
-    return children
-        .where((c) => c['kind'] == 't1' || c['kind'] == 'more')
-        .map((c) => RedditComment.fromJson(c as Map<String, dynamic>))
-        .toList();
+  CommentsPage _parseCommentsPage(Document doc, String subreddit, String postId) {
+    final postThing = doc.querySelector('#siteTable div.thing');
+    final post = (postThing != null &&
+            (postThing.attributes['data-fullname'] ?? '').startsWith('t3_'))
+        ? RedditPost.fromThing(postThing)
+        : null;
+
+    final permalink = postThing?.attributes['data-permalink'] ??
+        '/r/$subreddit/comments/$postId/';
+    final table = doc.querySelector('.commentarea .sitetable');
+    final comments = table == null
+        ? const <RedditComment>[]
+        : RedditComment.parseThings(table, 0, permalink, 't3_$postId');
+
+    return CommentsPage(post: post, comments: comments);
   }
 
   void cacheExpandedComments(
     String subreddit,
     String postId,
     String sort,
-    List<RedditComment> tree,
+    CommentsPage page,
   ) {
     RedditCache.instance.put(
       _commentsUri(subreddit, postId, sort: sort).toString(),
-      tree,
+      page,
     );
   }
 }

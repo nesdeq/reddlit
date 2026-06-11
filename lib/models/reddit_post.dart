@@ -1,6 +1,7 @@
-import '../utils/html_utils.dart';
+import 'package:html/dom.dart';
 import '../utils/url_utils.dart';
 import '../utils/format_utils.dart';
+import '../utils/html_to_markdown.dart';
 
 enum PostContentType {
   text,
@@ -27,7 +28,7 @@ class RedditPost {
   final bool isGallery;
   final String domain;
   final String? videoUrl;
-  final Map<String, dynamic>? _rawData;
+  final List<String> galleryImages;
 
   RedditPost({
     required this.id,
@@ -44,27 +45,43 @@ class RedditPost {
     this.isGallery = false,
     required this.domain,
     this.videoUrl,
-    Map<String, dynamic>? rawData,
-  }) : _rawData = rawData;
+    this.galleryImages = const [],
+  });
 
-  factory RedditPost.fromJson(Map<String, dynamic> json) {
-    final data = json['data'] as Map<String, dynamic>;
+  /// Parse a post from an old.reddit `div.thing` element.
+  ///
+  /// The listing thing is lean (metadata + thumbnail + video manifests). The
+  /// same thing on a post page additionally carries the selftext body and
+  /// gallery image set in its expando — [fromThing] extracts whatever is
+  /// present, so one parser serves both feed and detail.
+  factory RedditPost.fromThing(Element thing) {
+    String? attr(String name) => thing.attributes['data-$name'];
+
+    final fullname = attr('fullname') ?? '';
+    final id = fullname.startsWith('t3_') ? fullname.substring(3) : fullname;
+
+    final hls = _clean(attr('hls-url'));
+    final mpd = _clean(attr('mpd-url'));
+    final dataUrl = _clean(attr('url'));
+    final domain = attr('domain') ?? '';
+    final isVideo = hls != null || mpd != null || domain == 'v.redd.it';
+
     return RedditPost(
-      id: data['id'] ?? '',
-      title: HtmlUtils.decodeHtmlEntities(data['title'] ?? ''),
-      author: data['author'] ?? '[deleted]',
-      subreddit: data['subreddit'] ?? '',
-      score: data['score'] ?? 0,
-      numComments: data['num_comments'] ?? 0,
-      created: FormatUtils.fromRedditUtc(data['created_utc']),
-      thumbnail: _extractThumbnail(data),
-      url: data['url'] as String?,
-      selftext: _extractSelftext(data),
-      isVideo: data['is_video'] ?? false,
-      isGallery: data['is_gallery'] == true,
-      domain: data['domain'] ?? '',
-      videoUrl: _extractVideoUrl(data),
-      rawData: data,
+      id: id,
+      title: thing.querySelector('a.title')?.text.trim() ?? '',
+      author: attr('author') ?? '[deleted]',
+      subreddit: attr('subreddit') ?? '',
+      score: int.tryParse(attr('score') ?? '') ?? 0,
+      numComments: int.tryParse(attr('comments-count') ?? '') ?? 0,
+      created: FormatUtils.fromRedditMillis(attr('timestamp')),
+      thumbnail: _extractThumbnail(thing),
+      url: dataUrl,
+      selftext: _extractSelftext(thing),
+      isVideo: isVideo,
+      isGallery: attr('is-gallery') == 'true',
+      domain: domain,
+      videoUrl: hls ?? mpd,
+      galleryImages: _extractGalleryImages(thing),
     );
   }
 
@@ -74,94 +91,76 @@ class RedditPost {
       ? null
       : UrlUtils.extractYoutubeId(url!);
 
-  /// Gallery images are only needed for gallery posts — compute lazily so
-  /// non-gallery posts skip the extraction entirely.
-  late final List<String> galleryImages = isGallery && _rawData != null
-      ? _extractGalleryImages(_rawData)
-      : const [];
+  /// old.reddit emits protocol-relative URLs (`//preview.redd.it/…`); normalize
+  /// to https and decode entity-escaped query separators.
+  static String? _clean(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var url = raw.replaceAll('&amp;', '&');
+    if (url.startsWith('//')) url = 'https:$url';
+    return url;
+  }
 
-  static String? _extractThumbnail(Map<String, dynamic> data) {
-    final thumbnail = data['thumbnail'];
-    if (thumbnail != null &&
-        thumbnail != 'self' &&
-        thumbnail != 'default' &&
-        thumbnail != 'nsfw' &&
-        thumbnail is String &&
-        thumbnail.startsWith('http')) {
-      return thumbnail;
+  static String? _extractThumbnail(Element thing) {
+    final src = thing.querySelector('a.thumbnail img')?.attributes['src'];
+    return _clean(src);
+  }
+
+  /// Selftext lives in the post's own expando, present only on the post page.
+  /// Scoped to the entry so it can't pick up a comment body.
+  static String? _extractSelftext(Element thing) {
+    final md = thing.querySelector('.entry .usertext-body .md');
+    if (md == null) return null;
+    final markdown = HtmlToMarkdown.convert(md);
+    return markdown.isEmpty ? null : markdown;
+  }
+
+  /// Gallery image URLs are rendered into the post page expando. Collect the
+  /// distinct reddit-hosted image URLs in document order.
+  static List<String> _extractGalleryImages(Element thing) {
+    if (thing.attributes['data-is-gallery'] != 'true') return const [];
+    final seen = <String>{};
+    final images = <String>[];
+    void consider(String? raw) {
+      final url = _clean(raw);
+      if (url == null) return;
+      if (!_galleryImagePattern.hasMatch(url)) return;
+      final key = url.split('?').first;
+      if (seen.add(key)) images.add(url);
     }
 
-    try {
-      final preview = data['preview'];
-      if (preview?['images'] == null || preview['images'].isEmpty) return null;
-      final image = preview['images'][0];
-
-      if (image['source']?['url'] != null) {
-        return HtmlUtils.decodeHtmlEntities(image['source']['url']);
-      }
-      if (image['resolutions'] != null && image['resolutions'].isNotEmpty) {
-        final resolutions = image['resolutions'] as List;
-        final resolution = resolutions.length > 2
-            ? resolutions[2]
-            : resolutions.last;
-        if (resolution['url'] != null) {
-          return HtmlUtils.decodeHtmlEntities(resolution['url']);
-        }
-      }
-    } catch (_) {
-      // Ignore preview parsing errors
+    for (final a in thing.querySelectorAll('.entry a[href]')) {
+      consider(a.attributes['href']);
     }
-    return null;
-  }
-
-  static String? _extractVideoUrl(Map<String, dynamic> data) {
-    if (data['is_video'] != true) return null;
-    final redditVideo = data['media']?['reddit_video'];
-    if (redditVideo == null) return null;
-    // Prefer HLS (includes audio), fallback to DASH.
-    return redditVideo['hls_url'] as String? ??
-        redditVideo['fallback_url'] as String?;
-  }
-
-  static String? _extractSelftext(Map<String, dynamic> data) {
-    final selftext = data['selftext'];
-    if (selftext == null || (selftext as String).isEmpty) return null;
-    return HtmlUtils.decodeHtmlEntities(selftext);
-  }
-
-  static List<String> _extractGalleryImages(Map<String, dynamic> data) {
-    try {
-      final galleryData = data['gallery_data'];
-      final mediaMetadata = data['media_metadata'] as Map<String, dynamic>?;
-      if (galleryData?['items'] == null || mediaMetadata == null) return [];
-
-      final images = <String>[];
-      for (final item in galleryData['items']) {
-        final mediaId = item['media_id'];
-        final media = mediaMetadata[mediaId];
-        if (media?['s']?['u'] != null) {
-          images.add(HtmlUtils.decodeHtmlEntities(media['s']['u']));
-        }
-      }
-      return images;
-    } catch (_) {
-      return [];
+    for (final img in thing.querySelectorAll('.entry img[src]')) {
+      consider(img.attributes['src']);
     }
+    return images;
   }
+
+  static final _galleryImagePattern = RegExp(
+    r'https?://(?:i|preview)\.redd\.it/[A-Za-z0-9._-]+\.(?:jpg|jpeg|png|webp|gif)',
+    caseSensitive: false,
+  );
 
   String get imageUrl {
+    // For galleries with no loaded images (feed), fall back to the cover thumb.
+    if (isGallery && galleryImages.isEmpty) return thumbnail ?? '';
     if (url != null && url!.isNotEmpty) return url!;
     return thumbnail ?? '';
   }
 
   PostContentType get contentType {
     if (isGallery && galleryImages.isNotEmpty) return PostContentType.gallery;
-    if (url == null || domain.contains('reddit.com')) {
-      return PostContentType.text;
-    }
     // Check isVideo flag BEFORE youtube/image — prevents misclassification.
     if (isVideo) return PostContentType.redditVideo;
     if (youtubeId != null) return PostContentType.youtubeVideo;
+    // Gallery cover in the feed (no images loaded yet) renders as an image.
+    if (isGallery && (thumbnail?.isNotEmpty ?? false)) {
+      return PostContentType.image;
+    }
+    if (url == null || domain.contains('reddit.com')) {
+      return PostContentType.text;
+    }
     if (UrlUtils.isImageUrl(url!)) return PostContentType.image;
     if (UrlUtils.isVideoUrl(url!)) return PostContentType.video;
     return PostContentType.externalLink;

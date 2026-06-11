@@ -34,12 +34,18 @@ class FormatUtils {
     }
   }
 
-  /// Convert Reddit UTC timestamp to DateTime
-  /// Reddit API returns timestamps as seconds since epoch
-  static DateTime fromRedditUtc(dynamic utcTimestamp) {
-    final timestamp = (utcTimestamp ?? 0) as num;
-    return DateTime.fromMillisecondsSinceEpoch((timestamp * 1000).toInt());
+  /// Convert old.reddit's `data-timestamp` (epoch milliseconds, as a string)
+  /// to DateTime. Returns the epoch on missing/garbage input.
+  static DateTime fromRedditMillis(String? millis) {
+    final ms = int.tryParse(millis ?? '') ?? 0;
+    return DateTime.fromMillisecondsSinceEpoch(ms);
   }
+
+  /// Convert an ISO-8601 timestamp (old.reddit `<time datetime=...>`) to
+  /// DateTime. Falls back to the epoch on parse failure.
+  static DateTime fromIso8601(String? iso) =>
+      DateTime.tryParse(iso ?? '')?.toLocal() ??
+      DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Format date as "MMM yyyy" (e.g., "Jan 2024")
   static String formatMonthYear(DateTime date) {

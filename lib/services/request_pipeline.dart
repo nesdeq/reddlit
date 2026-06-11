@@ -1,12 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 
 import 'package:http/http.dart' as http;
 
 import '../constants/http_constants.dart';
 
-/// Throttled, deduped, retrying HTTP client for reddit.com JSON endpoints.
+/// Throttled, deduped, retrying HTTP client for old.reddit.com HTML endpoints.
 ///
 /// Three behaviors keep the app under Reddit's anonymous-request throttle:
 ///   - concurrency cap (at most [_maxConcurrent] in flight)
@@ -29,12 +28,14 @@ class RequestPipeline {
   final http.Client _client = http.Client();
   final Random _rng = Random();
 
-  final Map<String, Future<dynamic>> _inFlight = {};
+  final Map<String, Future<String?>> _inFlight = {};
   final List<Completer<void>> _waiters = [];
   int _active = 0;
   DateTime _lastDispatch = DateTime.fromMillisecondsSinceEpoch(0);
 
-  Future<dynamic> getJson(Uri uri) {
+  /// Fetch the raw HTML body for [uri]. Identical in-flight requests are
+  /// coalesced. Returns `null` on terminal failure.
+  Future<String?> getHtml(Uri uri) {
     final key = uri.toString();
     final existing = _inFlight[key];
     if (existing != null) return existing;
@@ -45,7 +46,7 @@ class RequestPipeline {
     return future;
   }
 
-  Future<dynamic> _run(Uri uri) async {
+  Future<String?> _run(Uri uri) async {
     for (var attempt = 0; attempt <= _maxRetries; attempt++) {
       await _acquireSlot();
       http.Response? response;
@@ -63,11 +64,7 @@ class RequestPipeline {
       _releaseSlot();
 
       if (response.statusCode == 200) {
-        try {
-          return json.decode(response.body);
-        } catch (_) {
-          return null;
-        }
+        return response.body;
       }
       final transient =
           response.statusCode == 502 ||

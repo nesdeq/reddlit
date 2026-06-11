@@ -1,3 +1,4 @@
+import 'package:html/dom.dart';
 import '../utils/format_utils.dart';
 
 class RedditUser {
@@ -13,13 +14,28 @@ class RedditUser {
     required this.created,
   });
 
-  factory RedditUser.fromJson(Map<String, dynamic> json) {
-    final data = json['data'];
+  /// Parse karma and cake-day from an old.reddit `/user/<name>/` page sidebar.
+  factory RedditUser.fromUserPage(Document doc, String name) {
+    int karma(Element? el) =>
+        int.tryParse((el?.text ?? '').replaceAll(RegExp(r'[^0-9]'), '')) ?? 0;
+
+    // Two `.karma` spans: post karma (plain) and comment karma (.comment-karma).
+    final commentSpan = doc.querySelector('span.karma.comment-karma');
+    Element? linkSpan;
+    for (final span in doc.querySelectorAll('span.karma')) {
+      if (!span.classes.contains('comment-karma')) {
+        linkSpan = span;
+        break;
+      }
+    }
+
+    final age = doc.querySelector('.age time')?.attributes['datetime'];
+
     return RedditUser(
-      name: data['name'] ?? '',
-      linkKarma: data['link_karma'] ?? 0,
-      commentKarma: data['comment_karma'] ?? 0,
-      created: FormatUtils.fromRedditUtc(data['created_utc']),
+      name: name,
+      linkKarma: karma(linkSpan),
+      commentKarma: karma(commentSpan),
+      created: FormatUtils.fromIso8601(age),
     );
   }
 
@@ -29,7 +45,7 @@ class RedditUser {
       name: name,
       linkKarma: 0,
       commentKarma: 0,
-      created: DateTime.now(),
+      created: DateTime.fromMillisecondsSinceEpoch(0),
     );
   }
 

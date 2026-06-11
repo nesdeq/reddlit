@@ -29,6 +29,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final RedditService _redditService = RedditService();
   final ScrollController _scrollController = ScrollController();
 
+  /// The post we render. Starts as the lean listing post, then upgrades to the
+  /// post-page version (selftext + gallery) once comments load.
+  late RedditPost _post = widget.post;
   List<RedditComment> _tree = const [];
   bool _isLoading = false;
   String _commentSort = SortConstants.confidence;
@@ -42,7 +45,10 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       widget.post.id,
       sort: _commentSort,
     );
-    if (cached != null) _tree = cached;
+    if (cached != null) {
+      _post = cached.post ?? widget.post;
+      _tree = cached.comments;
+    }
     _loadComments();
   }
 
@@ -65,14 +71,15 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     final token = ++_loadToken;
     setState(() => _isLoading = _tree.isEmpty);
     try {
-      final raw = await _redditService.getComments(
+      final page = await _redditService.getComments(
         widget.post.subreddit,
         widget.post.id,
         sort: _commentSort,
       );
       if (!mounted || token != _loadToken) return;
       setState(() {
-        _tree = raw;
+        _post = page.post ?? widget.post;
+        _tree = page.comments;
         _isLoading = false;
       });
     } catch (_) {
@@ -90,68 +97,100 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _onMoreTap(RedditComment placeholder) async {
+    final permalink = placeholder.morePermalink;
+    if (permalink == null) return;
     final token = _loadToken;
     final fetched = await _redditService.loadMoreComments(
-      linkId: 't3_${widget.post.id}',
-      childIds: placeholder.moreChildrenIds,
+      permalink: permalink,
+      parentFullname: placeholder.parentId ?? '',
       sort: _commentSort,
     );
     if (!mounted || token != _loadToken) return;
-    final merged = _mergeMoreReplies(_tree, placeholder, fetched);
+    final merged = _spliceMore(_tree, placeholder, fetched);
     setState(() => _tree = merged);
     _redditService.cacheExpandedComments(
       widget.post.subreddit,
       widget.post.id,
       _commentSort,
-      merged,
+      CommentsPage(post: _post, comments: merged),
     );
   }
 
-  List<RedditComment> _mergeMoreReplies(
+  /// Replace a "more" placeholder with freshly fetched content. A comment-level
+  /// placeholder swaps its parent comment for the re-expanded subtree; a
+  /// post-level one replaces the whole top-level list.
+  List<RedditComment> _spliceMore(
     List<RedditComment> tree,
     RedditComment placeholder,
     List<RedditComment> fetched,
   ) {
-    final byParent = <String, List<RedditComment>>{};
-    for (final c in fetched) {
-      final pid = c.parentId ?? '';
-      byParent.putIfAbsent(pid, () => []).add(c);
-    }
-
-    List<RedditComment> buildSubtree(String? parentFullname, int depth) {
-      final children = byParent[parentFullname ?? ''] ?? const [];
-      return children
-          .map(
-            (c) => c.copyWith(
-              depth: depth,
-              replies: buildSubtree('t1_${c.id}', depth + 1),
-            ),
-          )
-          .toList();
-    }
-
-    final siblings = buildSubtree(placeholder.parentId, placeholder.depth);
-
-    List<RedditComment> replaceIn(List<RedditComment> list) {
-      final result = <RedditComment>[];
-      for (final c in list) {
-        if (c.isMorePlaceholder && c.id == placeholder.id) {
-          result.addAll(siblings);
-        } else if (c.replies.isNotEmpty) {
-          result.add(c.copyWith(replies: replaceIn(c.replies)));
-        } else {
-          result.add(c);
+    final pid = placeholder.parentId ?? '';
+    if (pid.startsWith('t1_')) {
+      final targetId = pid.substring(3);
+      RedditComment? fresh;
+      for (final c in fetched) {
+        if (c.id == targetId) {
+          fresh = c;
+          break;
         }
       }
-      return result;
+      fresh ??= fetched.isNotEmpty ? fetched.first : null;
+      if (fresh == null) return _removePlaceholder(tree, placeholder.id);
+      return _replaceComment(tree, targetId, fresh);
     }
-
-    return replaceIn(tree);
+    if (fetched.isNotEmpty) {
+      return [for (final c in fetched) _rebase(c, 0)];
+    }
+    return _removePlaceholder(tree, placeholder.id);
   }
+
+  List<RedditComment> _replaceComment(
+    List<RedditComment> list,
+    String targetId,
+    RedditComment replacement,
+  ) {
+    final out = <RedditComment>[];
+    for (final c in list) {
+      if (!c.isMorePlaceholder && c.id == targetId) {
+        out.add(_rebase(replacement, c.depth));
+      } else if (c.replies.isNotEmpty) {
+        out.add(c.copyWith(
+          replies: _replaceComment(c.replies, targetId, replacement),
+        ));
+      } else {
+        out.add(c);
+      }
+    }
+    return out;
+  }
+
+  List<RedditComment> _removePlaceholder(
+    List<RedditComment> list,
+    String placeholderId,
+  ) {
+    final out = <RedditComment>[];
+    for (final c in list) {
+      if (c.isMorePlaceholder && c.id == placeholderId) continue;
+      if (c.replies.isNotEmpty) {
+        out.add(c.copyWith(replies: _removePlaceholder(c.replies, placeholderId)));
+      } else {
+        out.add(c);
+      }
+    }
+    return out;
+  }
+
+  /// Re-base a freshly fetched subtree (rendered at depth 0 on its own page) to
+  /// the depth it occupies in our tree.
+  RedditComment _rebase(RedditComment c, int depth) => c.copyWith(
+        depth: depth,
+        replies: [for (final r in c.replies) _rebase(r, depth + 1)],
+      );
 
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
+    final post = _post;
     final tree = _tree;
 
     return Scaffold(
@@ -162,13 +201,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           child: const Text('Post'),
         ),
         actions: [
-          if (UrlUtils.canSummarize(widget.post.url))
+          if (UrlUtils.canSummarize(post.url))
             IconButton(
               icon: const Icon(Icons.auto_awesome_rounded),
               onPressed: () => ArticleSummaryWidget.showSummary(
                 context: context,
-                url: widget.post.url!,
-                title: widget.post.title,
+                url: post.url!,
+                title: post.title,
               ),
               tooltip: 'Summarize article',
             ),
@@ -198,38 +237,37 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 children: [
                   ContentWidgets.postMetadata(
                     context: context,
-                    subreddit: widget.post.subreddit,
-                    author: widget.post.author,
-                    timeAgo: FormatUtils.formatTime(widget.post.created),
+                    subreddit: post.subreddit,
+                    author: post.author,
+                    timeAgo: FormatUtils.formatTime(post.created),
                     onSubredditTap: () => NavigationHelper.navigateToSubreddit(
                       context,
-                      widget.post.subreddit,
+                      post.subreddit,
                     ),
                     onAuthorTap: () => NavigationHelper.navigateToUser(
                       context,
-                      widget.post.author,
+                      post.author,
                     ),
                   ),
                   const SizedBox(height: AppTheme.spacing3),
                   Text(
-                    widget.post.title,
+                    post.title,
                     style: colors.theme.textTheme.displayMedium,
                   ),
                   const SizedBox(height: AppTheme.spacing4),
-                  ContentPreview(post: widget.post, isCompact: false),
-                  if (widget.post.selftext != null &&
-                      widget.post.selftext!.isNotEmpty) ...[
+                  ContentPreview(post: post, isCompact: false),
+                  if (post.selftext != null && post.selftext!.isNotEmpty) ...[
                     const SizedBox(height: AppTheme.spacing4),
                     CommentContent(
-                      content: widget.post.selftext!,
+                      content: post.selftext!,
                       textStyle: colors.theme.textTheme.bodyLarge,
                     ),
                   ],
                   const SizedBox(height: AppTheme.spacing4),
                   ContentWidgets.engagementMetrics(
                     context: context,
-                    score: widget.post.score,
-                    commentCount: widget.post.numComments,
+                    score: post.score,
+                    commentCount: post.numComments,
                     iconSize: 18,
                   ),
                 ],
@@ -261,7 +299,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                       ),
                       TextSpan(
                         text: FormatUtils.formatNumber(
-                          widget.post.numComments,
+                          post.numComments,
                         ),
                         style: colors.theme.textTheme.titleMedium?.copyWith(
                           color: colors.textTertiary,
