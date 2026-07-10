@@ -15,7 +15,6 @@ class RedditComment {
   /// True when this node represents a Reddit "more" placeholder — tap to fetch
   /// the parent thread at [morePermalink] and splice the replies in.
   final bool isMorePlaceholder;
-  final List<String> moreChildrenIds;
   final int replyCount;
 
   /// old.reddit permalink to fetch when expanding this placeholder. The JSON
@@ -32,7 +31,6 @@ class RedditComment {
     this.parentId,
     this.replies = const [],
     this.isMorePlaceholder = false,
-    this.moreChildrenIds = const [],
     this.replyCount = 0,
     this.morePermalink,
   });
@@ -94,7 +92,6 @@ class RedditComment {
       depth: depth,
       parentId: parentFullname,
       isMorePlaceholder: true,
-      moreChildrenIds: ids,
       replyCount: replyCount,
       morePermalink: permalink,
     );
@@ -179,7 +176,6 @@ class RedditComment {
       parentId: parentId,
       replies: replies ?? this.replies,
       isMorePlaceholder: isMorePlaceholder,
-      moreChildrenIds: moreChildrenIds,
       replyCount: replyCount,
       morePermalink: morePermalink,
     );

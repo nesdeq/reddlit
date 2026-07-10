@@ -119,9 +119,11 @@ class RedditService {
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
+    String? permalink,
   }) => _withCache<CommentsPage>(
     bucket: CacheBucket.comments,
     uri: _commentsUri(subreddit, postId, sort: sort),
+    fetchUri: _commentsFetchUri(permalink, subreddit, postId, sort),
     parse: (doc) => _parseCommentsPage(doc, subreddit, postId),
   );
 
@@ -135,19 +137,17 @@ class RedditService {
     String sort = SortConstants.confidence,
   }) async {
     final base = Uri.parse(permalink);
-    final uri = base.replace(
-      queryParameters: {...base.queryParameters, 'sort': sort},
+    final uri = Uri.https(
+      base.host,
+      base.path,
+      {...base.queryParameters, 'sort': sort},
     );
-    final body = await RequestPipeline.instance.getHtml(uri);
-    if (body == null) return const [];
-    try {
-      final doc = html_parser.parse(body);
+    final comments = await _fetchAndParse<List<RedditComment>>(uri, (doc) {
       final table = doc.querySelector('.commentarea .sitetable');
-      if (table == null) return const [];
+      if (table == null) return const <RedditComment>[];
       return RedditComment.parseThings(table, 0, permalink, parentFullname);
-    } catch (_) {
-      return const [];
-    }
+    });
+    return comments ?? const [];
   }
 
   Future<RedditUser> getUserInfo(String username) async {
@@ -162,20 +162,26 @@ class RedditService {
     }
   }
 
+  /// Subreddit search uses new reddit's community endpoint: old.reddit's search
+  /// page carries neither member counts nor icons, and reddit no longer exposes
+  /// subscriber counts on old.reddit at all. The session (sent on every request)
+  /// clears new reddit's verification wall. Ranked by weekly visitors, highest
+  /// first.
   Future<List<Subreddit>> searchSubreddits(String query) {
-    final uri = Uri.https(_host, '/subreddits/search', {'q': query});
-    final queryLower = query.toLowerCase();
+    final uri = Uri.https('www.reddit.com', '/search/', {
+      'q': query,
+      'type': 'communities',
+    });
     return _withCache<List<Subreddit>>(
       bucket: CacheBucket.subredditSearch,
       uri: uri,
       parse: (doc) {
         final subs = doc
-            .querySelectorAll('div.thing.subreddit')
-            .map(Subreddit.fromThing)
+            .querySelectorAll('[data-testid="search-community"]')
+            .map(Subreddit.fromCommunityCard)
             .where((s) => s.displayName.isNotEmpty)
-            .where((s) => s.displayName.toLowerCase().contains(queryLower))
             .toList();
-        subs.sort((a, b) => b.subscribers.compareTo(a.subscribers));
+        subs.sort((a, b) => b.weeklyVisitors.compareTo(a.weeklyVisitors));
         return subs;
       },
     );
@@ -287,16 +293,35 @@ class RedditService {
   Uri _commentsUri(String subreddit, String postId, {required String sort}) =>
       Uri.https(_host, '/r/$subreddit/comments/$postId/', {'sort': sort});
 
+  /// The URL to actually fetch for a comments page. reddit 301-redirects the
+  /// slugless `/comments/<id>/` path to the canonical title-slug URL; when the
+  /// title has non-ASCII characters (German umlauts, etc.) the redirect target
+  /// is raw UTF-8 the HTTP client can't follow, so comments never load.
+  /// Requesting the permalink directly (percent-encoded by Uri.https) lands on
+  /// the canonical URL with no redirect. Falls back to the slugless path.
+  Uri _commentsFetchUri(
+    String? permalink,
+    String subreddit,
+    String postId,
+    String sort,
+  ) {
+    if (permalink == null || permalink.isEmpty) {
+      return _commentsUri(subreddit, postId, sort: sort);
+    }
+    return Uri.https(_host, permalink, {'sort': sort});
+  }
+
   Future<T> _withCache<T>({
     required CacheBucket bucket,
     required Uri uri,
+    Uri? fetchUri,
     required T Function(Document doc) parse,
   }) async {
     final key = uri.toString();
     final cached = RedditCache.instance.lookup<T>(bucket, key);
     if (cached != null) return cached;
 
-    final fresh = await _fetchAndParse<T>(uri, parse);
+    final fresh = await _fetchAndParse<T>(fetchUri ?? uri, parse);
     if (fresh == null) {
       throw const RedditServiceException('Network request failed.');
     }

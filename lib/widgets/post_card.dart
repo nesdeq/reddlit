@@ -37,7 +37,6 @@ class PostCard extends StatelessWidget {
       onTap: onTap,
       child: Container(
         color: colors.surfaceColor,
-        // Jony Ive: Remove borders, use whitespace for separation
         margin: const EdgeInsets.only(bottom: AppTheme.spacing2),
         child: Padding(
           padding: const EdgeInsets.symmetric(

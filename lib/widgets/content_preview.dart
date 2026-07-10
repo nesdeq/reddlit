@@ -94,31 +94,7 @@ class ContentPreview extends StatelessWidget {
       if (!(post.thumbnail?.isNotEmpty ?? false)) {
         return const SizedBox.shrink();
       }
-      return Stack(
-        alignment: Alignment.center,
-        children: [
-          ContentWidgets.cachedImage(
-            context: context,
-            imageUrl: post.thumbnail!,
-            aspectRatio: 16 / 9,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(
-                alpha: AppConstants.overlayOpacity,
-              ),
-              shape: BoxShape.circle,
-            ),
-            padding: const EdgeInsets.all(AppTheme.spacing3),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-        ],
-      );
+      return _thumbnailWithPlayButton(context, post.thumbnail!);
     }
 
     if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
@@ -141,29 +117,33 @@ class ContentPreview extends StatelessWidget {
     }
     return GestureDetector(
       onTap: target == null ? null : () => UrlUtils.openUrl(target),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          ContentWidgets.cachedImage(
-            context: context,
-            imageUrl: poster,
-            aspectRatio: 16 / 9,
-            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      child: _thumbnailWithPlayButton(context, poster),
+    );
+  }
+
+  Widget _thumbnailWithPlayButton(BuildContext context, String imageUrl) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        ContentWidgets.cachedImage(
+          context: context,
+          imageUrl: imageUrl,
+          aspectRatio: 16 / 9,
+          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
+            shape: BoxShape.circle,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
-              shape: BoxShape.circle,
-            ),
-            padding: const EdgeInsets.all(AppTheme.spacing3),
-            child: const Icon(
-              Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
+          padding: const EdgeInsets.all(AppTheme.spacing3),
+          child: const Icon(
+            Icons.play_arrow_rounded,
+            color: Colors.white,
+            size: 32,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -41,9 +41,9 @@ class ArticleSummaryWidget {
       language: language,
     );
 
-    if (context.mounted) Navigator.pop(context);
-
     if (!context.mounted) return;
+    Navigator.pop(context);
+
     if (result.isSuccess) {
       _showSummaryDialog(context, title, result.summary!);
     } else {

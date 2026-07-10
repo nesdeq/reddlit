@@ -75,6 +75,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         widget.post.subreddit,
         widget.post.id,
         sort: _commentSort,
+        permalink: widget.post.permalink,
       );
       if (!mounted || token != _loadToken) return;
       setState(() {

@@ -67,15 +67,6 @@ class UrlUtils {
     }
   }
 
-  /// Clean icon/image URL by removing query parameters and validating format
-  static String? cleanIconUrl(dynamic iconUrl) {
-    if (iconUrl == null || iconUrl == '') return null;
-    if (iconUrl is String && iconUrl.startsWith('http')) {
-      return iconUrl.split('?').first;
-    }
-    return null;
-  }
-
   /// Open URL in external browser
   static Future<bool> openUrl(String url) async {
     try {

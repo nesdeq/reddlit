@@ -121,28 +121,22 @@ class ThemeProvider extends ChangeNotifier {
   bool isFavorite(String subreddit) =>
       _favoriteSubreddits.contains(subreddit);
 
-  Future<void> toggleFavorite(String subreddit) async {
-    if (!_favoriteSubreddits.remove(subreddit)) {
-      _favoriteSubreddits.add(subreddit);
-    }
-    await _prefs?.setStringList(
-      _kFavoritesPref,
-      _favoriteSubreddits.toList(),
-    );
-    notifyListeners();
-  }
+  Future<void> toggleFavorite(String subreddit) =>
+      _toggleInSet(_favoriteSubreddits, _kFavoritesPref, subreddit);
 
   bool isFavoriteUser(String username) =>
       _favoriteUsers.contains(username);
 
-  Future<void> toggleFavoriteUser(String username) async {
-    if (!_favoriteUsers.remove(username)) {
-      _favoriteUsers.add(username);
-    }
-    await _prefs?.setStringList(
-      _kFavoriteUsersPref,
-      _favoriteUsers.toList(),
-    );
+  Future<void> toggleFavoriteUser(String username) =>
+      _toggleInSet(_favoriteUsers, _kFavoriteUsersPref, username);
+
+  Future<void> _toggleInSet(
+    Set<String> set,
+    String prefsKey,
+    String value,
+  ) async {
+    if (!set.remove(value)) set.add(value);
+    await _prefs?.setStringList(prefsKey, set.toList());
     notifyListeners();
   }
 
@@ -161,10 +155,14 @@ class ThemeProvider extends ChangeNotifier {
     } catch (e) {
       error = 'Secure storage unavailable — key held in memory only: $e';
     }
-    _isApiKeyValid = false;
-    await _prefs?.setBool(_kApiKeyValidPref, false);
-    notifyListeners();
+    await _setApiKeyValid(false);
     return error;
+  }
+
+  Future<void> _setApiKeyValid(bool valid) async {
+    _isApiKeyValid = valid;
+    await _prefs?.setBool(_kApiKeyValidPref, valid);
+    notifyListeners();
   }
 
   /// Validate OpenAI API key by making a test request.
@@ -179,15 +177,11 @@ class ThemeProvider extends ChangeNotifier {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        _isApiKeyValid = true;
-        await _prefs?.setBool(_kApiKeyValidPref, true);
-        notifyListeners();
+        await _setApiKeyValid(true);
         return null;
       }
       if (response.statusCode == 401) {
-        _isApiKeyValid = false;
-        await _prefs?.setBool(_kApiKeyValidPref, false);
-        notifyListeners();
+        await _setApiKeyValid(false);
         return 'Invalid API key';
       }
       final body = json.decode(response.body);

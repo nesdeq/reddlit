@@ -104,7 +104,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
                   // User info header
                   if (_user != null) _buildUserInfo(),
 
-                  // Jony Ive: Remove divider, use whitespace
                   const SizedBox(height: AppTheme.spacing4),
 
                   // User posts

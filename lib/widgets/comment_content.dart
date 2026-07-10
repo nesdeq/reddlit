@@ -21,6 +21,7 @@ class CommentContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
+    final base = textStyle ?? colors.theme.textTheme.bodyMedium;
 
     return MarkdownBody(
       data: content,
@@ -34,11 +35,11 @@ class CommentContent extends StatelessWidget {
         'img': CustomImageBuilder(colors),
       },
       styleSheet: MarkdownStyleSheet(
-        p: textStyle ?? colors.theme.textTheme.bodyMedium,
+        p: base,
         h1: colors.theme.textTheme.displayMedium,
         h2: colors.theme.textTheme.titleLarge,
         h3: colors.theme.textTheme.titleMedium,
-        a: (textStyle ?? colors.theme.textTheme.bodyMedium)?.copyWith(
+        a: base?.copyWith(
           color: colors.accentColor,
           decoration: TextDecoration.underline,
         ),
@@ -52,7 +53,7 @@ class CommentContent extends StatelessWidget {
           color: colors.dividerColor.withValues(alpha: AppConstants.codeBackgroundOpacity),
           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         ),
-        blockquote: (textStyle ?? colors.theme.textTheme.bodyMedium)?.copyWith(
+        blockquote: base?.copyWith(
           color: colors.textSecondary,
           fontStyle: FontStyle.italic,
         ),
@@ -61,13 +62,13 @@ class CommentContent extends StatelessWidget {
             left: BorderSide(color: colors.dividerColor, width: 3),
           ),
         ),
-        listBullet: (textStyle ?? colors.theme.textTheme.bodyMedium)?.copyWith(
+        listBullet: base?.copyWith(
           color: colors.textSecondary,
         ),
-        em: (textStyle ?? colors.theme.textTheme.bodyMedium)?.copyWith(
+        em: base?.copyWith(
           fontStyle: FontStyle.italic,
         ),
-        strong: (textStyle ?? colors.theme.textTheme.bodyMedium)?.copyWith(
+        strong: base?.copyWith(
           fontWeight: FontWeight.w600,
         ),
         blockSpacing: AppTheme.spacing2,

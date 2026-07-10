@@ -95,7 +95,8 @@ class RequestPipeline {
 
   static bool _looksBlocked(String body) =>
       body.contains('blocked by network security') ||
-      body.contains('Please try to login');
+      body.contains('Please try to login') ||
+      body.contains('Please wait for verification');
 
   Future<void> _acquireSlot() async {
     if (_active >= _maxConcurrent) {

@@ -412,6 +412,7 @@ class _AccountCard extends StatelessWidget {
         builder: (context, _) {
           final auth = AuthService.instance;
           final signedIn = auth.isAuthenticated;
+          final token = auth.cookieHeader ?? '';
           return Column(
             children: [
               ListTile(
@@ -469,7 +470,7 @@ class _AccountCard extends StatelessWidget {
                 ListTile(
                   title: const Text('Session token'),
                   subtitle: Text(
-                    auth.cookieHeader ?? '',
+                    token,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -481,10 +482,9 @@ class _AccountCard extends StatelessWidget {
                   trailing: IconButton(
                     icon: Icon(Icons.copy_rounded, color: colors.textTertiary),
                     tooltip: 'Copy token',
-                    onPressed: () =>
-                        _copyToken(context, auth.cookieHeader ?? ''),
+                    onPressed: () => _copyToken(context, token),
                   ),
-                  onTap: () => _showToken(context, auth.cookieHeader ?? ''),
+                  onTap: () => _showToken(context, token),
                 ),
                 Divider(height: 1, color: colors.dividerColor),
                 ListTile(

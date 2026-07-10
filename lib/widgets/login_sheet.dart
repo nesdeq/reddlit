@@ -49,6 +49,10 @@ class _LoginSheetState extends State<LoginSheet> {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
+    final dividerBorder = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+      borderSide: BorderSide(color: colors.dividerColor),
+    );
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -94,14 +98,8 @@ class _LoginSheetState extends State<LoginSheet> {
                   hintText: 'reddit_session value',
                   filled: true,
                   fillColor: colors.backgroundColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    borderSide: BorderSide(color: colors.dividerColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-                    borderSide: BorderSide(color: colors.dividerColor),
-                  ),
+                  border: dividerBorder,
+                  enabledBorder: dividerBorder,
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
                     borderSide: BorderSide(color: colors.accentColor, width: 2),

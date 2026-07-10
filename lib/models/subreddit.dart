@@ -2,45 +2,52 @@ import 'package:html/dom.dart';
 
 class Subreddit {
   final String displayName;
-  final int subscribers;
+  final int weeklyVisitors;
   final String? description;
   final String? iconUrl;
-  final String? age;
 
   Subreddit({
     required this.displayName,
-    required this.subscribers,
+    this.weeklyVisitors = 0,
     this.description,
     this.iconUrl,
-    this.age,
   });
 
-  factory Subreddit.fromThing(Element thing) {
-    final href = thing.querySelector('a.title')?.attributes['href'] ?? '';
-    final name = _namePattern.firstMatch(href)?.group(1) ??
-        thing.querySelector('[data-sr_name]')?.attributes['data-sr_name'] ??
-        '';
+  /// Parse one new-reddit community-search card
+  /// (`div[data-testid="search-community"]`). old.reddit's search page carries
+  /// no member count and no icon, and reddit no longer exposes subscriber
+  /// counts on old.reddit at all, so subreddit search alone uses new reddit,
+  /// where each card exposes the name, weekly-visitor count, icon, and blurb.
+  factory Subreddit.fromCommunityCard(Element card) {
+    final href = card.querySelector('a[href]')?.attributes['href'] ?? '';
+    final name = _namePattern.firstMatch(href)?.group(1) ?? '';
 
-    final desc = thing.querySelector('.description .md')?.text.trim();
+    final visitors = int.tryParse(
+          card.querySelector('faceplate-number')?.attributes['number'] ?? '',
+        ) ??
+        0;
 
-    final match = _subscriberPattern.firstMatch(thing.text);
-    final subscribers =
-        int.tryParse(match?.group(1)?.replaceAll(',', '') ?? '') ?? 0;
+    final icon = _clean(card.querySelector('img')?.attributes['src']);
 
-    final tagline = thing.querySelector('p.tagline')?.text.trim() ?? '';
-    final age = _agePattern.firstMatch(tagline)?.group(1)?.trim();
+    final desc = card
+        .querySelector('[data-testid="search-subreddit-desc-text"]')
+        ?.text
+        .trim();
 
     return Subreddit(
       displayName: name,
-      subscribers: subscribers,
+      weeklyVisitors: visitors,
       description: (desc == null || desc.isEmpty) ? null : desc,
-      iconUrl: null,
-      age: (age == null || age.isEmpty) ? null : age,
+      iconUrl: icon,
     );
   }
 
-  static final _namePattern = RegExp(r'/r/([A-Za-z0-9_]{2,21})/?');
-  static final _subscriberPattern =
-      RegExp(r'([\d,]+)\s*(?:readers|subscribers)', caseSensitive: false);
-  static final _agePattern = RegExp(r'community for (.+)', caseSensitive: false);
+  static final _namePattern = RegExp(r'/r/([A-Za-z0-9_]{2,21})');
+
+  static String? _clean(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    var url = raw.replaceAll('&amp;', '&');
+    if (url.startsWith('//')) url = 'https:$url';
+    return url;
+  }
 }

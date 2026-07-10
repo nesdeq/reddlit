@@ -23,6 +23,7 @@ class RedditPost {
   final DateTime created;
   final String? thumbnail;
   final String? url;
+  final String? permalink;
   final String? selftext;
   final bool isVideo;
   final bool isGallery;
@@ -40,6 +41,7 @@ class RedditPost {
     required this.created,
     this.thumbnail,
     this.url,
+    this.permalink,
     this.selftext,
     required this.isVideo,
     this.isGallery = false,
@@ -79,6 +81,7 @@ class RedditPost {
       created: FormatUtils.fromRedditMillis(attr('timestamp')),
       thumbnail: _extractThumbnail(thing),
       url: dataUrl,
+      permalink: attr('permalink'),
       selftext: _extractSelftext(thing),
       isVideo: isVideo,
       isGallery: attr('is-gallery') == 'true',

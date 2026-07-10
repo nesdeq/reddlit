@@ -7,10 +7,20 @@ import 'package:http/http.dart' as http;
 import '../constants/http_constants.dart';
 
 class AuthService extends ChangeNotifier {
-  AuthService._();
+  AuthService._()
+      : _client = http.Client(),
+        _storage = const FlutterSecureStorage();
+
+  /// Fresh, non-singleton instance with an injected HTTP client, for tests.
+  @visibleForTesting
+  AuthService.withClient(http.Client client)
+      : _client = client,
+        _storage = const FlutterSecureStorage();
+
   static final AuthService instance = AuthService._();
 
-  static const _storage = FlutterSecureStorage();
+  final http.Client _client;
+  final FlutterSecureStorage _storage;
   static const _kCookie = 'reddit_session_cookie';
   static const _timeout = Duration(seconds: 20);
 
@@ -54,22 +64,15 @@ class AuthService extends ChangeNotifier {
     return _store(cookie);
   }
 
-  Future<String?> validate() async {
+  Future<String?> validate() {
     final cookie = _cookie;
-    if (cookie == null || cookie.isEmpty) return 'No session saved.';
-    _busy = true;
-    notifyListeners();
-    try {
+    if (cookie == null || cookie.isEmpty) {
+      return Future.value('No session saved.');
+    }
+    return _withBusyGuard(() async {
       _validated = await _check(cookie);
       return _validated ? null : 'Session is not active. Log in again.';
-    } on TimeoutException {
-      return 'Timed out reaching Reddit.';
-    } catch (e) {
-      return 'Error: $e';
-    } finally {
-      _busy = false;
-      notifyListeners();
-    }
+    });
   }
 
   Future<void> logout() async {
@@ -95,13 +98,11 @@ class AuthService extends ChangeNotifier {
     return headers;
   }
 
-  Future<String?> _store(String cookie) async {
+  Future<String?> _store(String cookie) {
     if (cookie.isEmpty || !cookie.contains('reddit_session=')) {
-      return 'No reddit_session found in that value.';
+      return Future.value('No reddit_session found in that value.');
     }
-    _busy = true;
-    notifyListeners();
-    try {
+    return _withBusyGuard(() async {
       if (!await _check(cookie)) {
         return 'That session is not logged in to Reddit. Try again.';
       }
@@ -112,6 +113,16 @@ class AuthService extends ChangeNotifier {
         await _storage.write(key: _kCookie, value: cookie);
       } catch (_) {}
       return null;
+    });
+  }
+
+  /// Toggle [busy] around [action], mapping timeouts and errors to the
+  /// user-facing strings shared by every network-touching auth call.
+  Future<String?> _withBusyGuard(Future<String?> Function() action) async {
+    _busy = true;
+    notifyListeners();
+    try {
+      return await action();
     } on TimeoutException {
       return 'Timed out reaching Reddit.';
     } catch (e) {
@@ -123,7 +134,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<bool> _check(String cookie) async {
-    final resp = await http.get(
+    final resp = await _client.get(
       Uri.parse('https://old.reddit.com/'),
       headers: {...HttpConstants.browserHeaders, 'Cookie': cookie},
     ).timeout(_timeout);

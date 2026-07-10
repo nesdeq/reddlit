@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../models/subreddit.dart';
+import '../services/auth_service.dart';
 import '../services/reddit_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../theme/theme_provider.dart';
+import '../utils/format_utils.dart';
 import '../utils/haptics.dart';
 import '../utils/navigation_helper.dart';
 import '../widgets/loading_widgets.dart';
@@ -104,7 +106,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
               ),
               onChanged: (value) {
                 setState(() {});
-                // Auto-search after 1 second of no typing
                 _debounceTimer?.cancel();
                 if (value.trim().isNotEmpty) {
                   _debounceTimer = Timer(
@@ -188,6 +189,8 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                   ? ClipOval(
                       child: CachedNetworkImage(
                         imageUrl: subreddit.iconUrl!,
+                        httpHeaders:
+                            AuthService.instance.mediaHeaders(subreddit.iconUrl!),
                         fit: BoxFit.cover,
                         errorWidget: (context, url, error) =>
                             _buildPlaceholderIcon(colors),
@@ -213,17 +216,18 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacing1),
 
-                  if (subreddit.age != null)
+                  if (subreddit.weeklyVisitors > 0)
                     Row(
                       children: [
                         Icon(
-                          Icons.cake_rounded,
+                          Icons.people_outline_rounded,
                           size: 14,
                           color: colors.textSecondary,
                         ),
                         const SizedBox(width: AppTheme.spacing1),
                         Text(
-                          subreddit.age!,
+                          '${FormatUtils.formatNumber(subreddit.weeklyVisitors)}'
+                          ' weekly visitors',
                           style: colors.theme.textTheme.bodySmall,
                         ),
                       ],

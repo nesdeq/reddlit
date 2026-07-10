@@ -23,17 +23,16 @@ class HtmlToMarkdown {
     for (final node in nodes) {
       if (node is Element) {
         final block = _block(node, indent: indent);
-        if (block != null && block.trim().isNotEmpty) out.add(block);
+        if (block.trim().isNotEmpty) out.add(block);
       } else if (node is Text) {
         if (node.text.trim().isEmpty) continue;
-        final t = _collapse(node.text);
-        if (t.isNotEmpty) out.add(t);
+        out.add(_collapse(node.text));
       }
     }
     return out;
   }
 
-  static String? _block(Element el, {required String indent}) {
+  static String _block(Element el, {required String indent}) {
     switch (el.localName) {
       case 'p':
         return _inline(el.nodes);

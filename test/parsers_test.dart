@@ -74,6 +74,21 @@ void main() {
       expect(p.contentType, PostContentType.image);
       expect(p.imageUrl, 'https://i.redd.it/pic1.jpeg');
     });
+
+    test('captures data-permalink; a non-ascii title encodes for the fetch', () {
+      final t = _thing(
+          '<div class="thing" data-fullname="t3_x" data-domain="digitalrechte.de" '
+          'data-url="https://digitalrechte.de/x" '
+          'data-permalink="/r/de/comments/1ushh0x/bundesregierung_eskaliert_überwachung_jetzt_kommt/" '
+          'data-author="u" data-subreddit="de" data-score="1" '
+          'data-comments-count="1" data-timestamp="1700000000000">'
+          '<a class="title">T</a></div>');
+      final p = RedditPost.fromThing(t);
+      expect(p.permalink, contains('überwachung'));
+      final uri = Uri.https('old.reddit.com', p.permalink!, {'sort': 'confidence'});
+      expect(uri.toString(), contains('%C3%BC'));
+      expect(uri.toString(), isNot(contains('überwachung')));
+    });
   });
 
   group('RedditComment placeholders', () {
@@ -101,7 +116,6 @@ void main() {
           "<a href=\"#\" onclick=\"morechildren(this,'t3_y','confidence','c1:t1_a,t1_b','False')\">"
           'load more comments <span class="gray">(1500 replies)</span></a></span></div>');
       expect(c.isMorePlaceholder, isTrue);
-      expect(c.moreChildrenIds.length, 2);
       expect(c.replyCount, 1500);
     });
   });
@@ -170,16 +184,23 @@ void main() {
     });
   });
 
-  group('Subreddit.fromThing', () {
-    test('reads name and community age (no subscriber count in search)', () {
-      final t = _thing(
-          '<div class="thing subreddit" data-fullname="t5_x">'
-          '<p class="titlerow"><a class="title" href="https://old.reddit.com/r/Flutter/">'
-          'r/Flutter: Flutter</a></p>'
-          '<p class="tagline">a community for 12 years</p></div>');
-      final s = Subreddit.fromThing(t);
+  group('Subreddit.fromCommunityCard', () {
+    test('reads name, weekly visitors, icon, and description', () {
+      final doc = html_parser.parse(
+          '<div data-testid="search-community">'
+          '<a href="/r/Flutter/"></a>'
+          '<img src="https://styles.redditmedia.com/t5_x/styles/communityIcon_a.png?width=64&amp;s=1">'
+          '<span id="search-community-title-t5_x">r/Flutter</span>'
+          '<p data-testid="search-subreddit-desc-text">Flutter news.</p>'
+          '<faceplate-number number="123456" pretty></faceplate-number> weekly visitors'
+          '</div>');
+      final card = doc.querySelector('[data-testid="search-community"]')!;
+      final s = Subreddit.fromCommunityCard(card);
       expect(s.displayName, 'Flutter');
-      expect(s.age, '12 years');
+      expect(s.weeklyVisitors, 123456);
+      expect(s.description, 'Flutter news.');
+      expect(s.iconUrl,
+          'https://styles.redditmedia.com/t5_x/styles/communityIcon_a.png?width=64&s=1');
     });
   });
 }
