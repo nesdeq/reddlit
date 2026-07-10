@@ -60,12 +60,13 @@ class RedditPost {
     final fullname = attr('fullname') ?? '';
     final id = fullname.startsWith('t3_') ? fullname.substring(3) : fullname;
 
-    final hls =
-        _clean(thing.querySelector('[data-hls-url]')?.attributes['data-hls-url']);
-    final mpd =
-        _clean(thing.querySelector('[data-mpd-url]')?.attributes['data-mpd-url']);
     final dataUrl = _clean(attr('url'));
     final domain = attr('domain') ?? '';
+    final hls =
+        _clean(thing.querySelector('[data-hls-url]')?.attributes['data-hls-url']) ??
+            _redditVideoHls(domain, dataUrl);
+    final mpd =
+        _clean(thing.querySelector('[data-mpd-url]')?.attributes['data-mpd-url']);
     final isVideo = hls != null || mpd != null || domain == 'v.redd.it';
 
     return RedditPost(
@@ -100,6 +101,12 @@ class RedditPost {
     var url = raw.replaceAll('&amp;', '&');
     if (url.startsWith('//')) url = 'https:$url';
     return url;
+  }
+
+  static String? _redditVideoHls(String domain, String? url) {
+    if (domain != 'v.redd.it' || url == null) return null;
+    final id = RegExp(r'v\.redd\.it/([A-Za-z0-9]+)').firstMatch(url)?.group(1);
+    return id == null ? null : 'https://v.redd.it/$id/HLSPlaylist.m3u8';
   }
 
   static String? _extractThumbnail(Element thing) {

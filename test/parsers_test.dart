@@ -39,6 +39,17 @@ void main() {
       expect(p.videoUrl, 'https://v.redd.it/abc/HLSPlaylist.m3u8?a=1');
     });
 
+    test('v.redd.it listing post: hls is constructed from the id', () {
+      final t = _thing(
+          '<div class="thing" data-fullname="t3_v" data-domain="v.redd.it" '
+          'data-url="https://v.redd.it/abc123" data-author="u" data-subreddit="s" '
+          'data-score="1" data-comments-count="1" data-timestamp="1700000000000">'
+          '<a class="title">V</a></div>');
+      final p = RedditPost.fromThing(t);
+      expect(p.contentType, PostContentType.redditVideo);
+      expect(p.videoUrl, 'https://v.redd.it/abc123/HLSPlaylist.m3u8');
+    });
+
     test('gallery cover is rebuilt full-res from the thumbnail hash', () {
       final t = _thing(
           '<div class="thing" data-fullname="t3_g" data-is-gallery="true" '
