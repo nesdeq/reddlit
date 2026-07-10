@@ -60,8 +60,10 @@ class RedditPost {
     final fullname = attr('fullname') ?? '';
     final id = fullname.startsWith('t3_') ? fullname.substring(3) : fullname;
 
-    final hls = _clean(attr('hls-url'));
-    final mpd = _clean(attr('mpd-url'));
+    final hls =
+        _clean(thing.querySelector('[data-hls-url]')?.attributes['data-hls-url']);
+    final mpd =
+        _clean(thing.querySelector('[data-mpd-url]')?.attributes['data-mpd-url']);
     final dataUrl = _clean(attr('url'));
     final domain = attr('domain') ?? '';
     final isVideo = hls != null || mpd != null || domain == 'v.redd.it';
@@ -143,10 +145,23 @@ class RedditPost {
   );
 
   String get imageUrl {
-    // For galleries with no loaded images (feed), fall back to the cover thumb.
-    if (isGallery && galleryImages.isEmpty) return thumbnail ?? '';
+    if (isGallery && galleryImages.isEmpty) {
+      return _galleryCover ?? thumbnail ?? '';
+    }
     if (url != null && url!.isNotEmpty) return url!;
     return thumbnail ?? '';
+  }
+
+  late final String? _galleryCover = _coverFromThumbnail(thumbnail);
+
+  static String? _coverFromThumbnail(String? thumb) {
+    if (thumb == null) return null;
+    final m = RegExp(
+      r'/preview\.redd\.it/([A-Za-z0-9]+)\.(jpg|jpeg|png|webp|gif)',
+      caseSensitive: false,
+    ).firstMatch(thumb);
+    if (m == null) return null;
+    return 'https://i.redd.it/${m.group(1)}.${m.group(2)}';
   }
 
   PostContentType get contentType {
@@ -158,7 +173,7 @@ class RedditPost {
     if (isGallery && (thumbnail?.isNotEmpty ?? false)) {
       return PostContentType.image;
     }
-    if (url == null || domain.contains('reddit.com')) {
+    if (url == null || domain.startsWith('self.') || domain.contains('reddit.com')) {
       return PostContentType.text;
     }
     if (UrlUtils.isImageUrl(url!)) return PostContentType.image;

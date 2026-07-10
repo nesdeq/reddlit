@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
+import 'services/auth_service.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
+import 'widgets/auth_gate.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AuthService.instance.load();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
@@ -38,7 +41,7 @@ class ReddlitApp extends StatelessWidget {
           themeAnimationDuration: const Duration(milliseconds: 320),
           themeAnimationCurve: Curves.easeOutCubic,
           debugShowCheckedModeBanner: false,
-          home: const HomeScreen(),
+          home: const AuthGate(child: HomeScreen()),
         );
       },
     );

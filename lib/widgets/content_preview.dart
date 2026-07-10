@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import '../models/reddit_post.dart';
 import '../theme/app_theme.dart';
@@ -28,10 +30,12 @@ class ContentPreview extends StatelessWidget {
 
       case PostContentType.redditVideo:
         final videoUrl = post.videoUrl;
-        if (videoUrl != null && videoUrl.startsWith('http')) {
+        if (_videoPlayerSupported &&
+            videoUrl != null &&
+            videoUrl.startsWith('http')) {
           return RedditVideoPlayer(videoUrl: videoUrl);
         }
-        return LoadingWidgets.videoError(context);
+        return _videoPoster(context);
 
       case PostContentType.youtubeVideo:
         final youtubeId = post.youtubeId;
@@ -95,7 +99,7 @@ class ContentPreview extends StatelessWidget {
         children: [
           ContentWidgets.cachedImage(
             context: context,
-            imageUrl: post.imageUrl,
+            imageUrl: post.thumbnail!,
             aspectRatio: 16 / 9,
             borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
           ),
@@ -123,6 +127,43 @@ class ContentPreview extends StatelessWidget {
       url: post.url!,
       domain: post.domain,
       onTap: () => UrlUtils.openUrl(post.url!),
+    );
+  }
+
+  static final bool _videoPlayerSupported =
+      !(Platform.isLinux || Platform.isWindows);
+
+  Widget _videoPoster(BuildContext context) {
+    final poster = post.thumbnail;
+    final target = post.url ?? post.videoUrl;
+    if (poster == null || poster.isEmpty) {
+      return LoadingWidgets.videoError(context);
+    }
+    return GestureDetector(
+      onTap: target == null ? null : () => UrlUtils.openUrl(target),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          ContentWidgets.cachedImage(
+            context: context,
+            imageUrl: poster,
+            aspectRatio: 16 / 9,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),
+              shape: BoxShape.circle,
+            ),
+            padding: const EdgeInsets.all(AppTheme.spacing3),
+            child: const Icon(
+              Icons.play_arrow_rounded,
+              color: Colors.white,
+              size: 32,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

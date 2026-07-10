@@ -4,6 +4,7 @@ import 'package:video_player/video_player.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../constants/app_constants.dart';
+import '../services/auth_service.dart';
 import 'loading_widgets.dart';
 
 class RedditVideoPlayer extends StatefulWidget {
@@ -35,6 +36,7 @@ class _RedditVideoPlayerState extends State<RedditVideoPlayer> {
     try {
       final controller = VideoPlayerController.networkUrl(
         Uri.parse(widget.videoUrl),
+        httpHeaders: AuthService.instance.mediaHeaders(widget.videoUrl),
       );
       await controller.initialize();
       controller.setLooping(true);

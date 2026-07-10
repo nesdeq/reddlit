@@ -1,0 +1,130 @@
+<!--
+Minimal REAL old.reddit.com markup, trimmed from live captures on 2026-07-10.
+
+Sources:
+  - r/mildlyinteresting/comments/1urgwis (giphy embed `.md`, `morerecursion`
+    "continue this thread" placeholder)
+  - r/vim/comments/1u7wvhg (`<pre><code>` fenced block)
+  - r/AmItheAsshole comment thing (real `.thing.comment` skeleton, `<del>`)
+  - r/learnprogramming/comments/1urlnpm (headings, `<hr>`, `<ol>`, `<strong>`
+    inside `<a>`)
+  - r/nfl/comments/1uqekhj (`<table>` with `<thead>`/`<tbody>`, `<em>`)
+
+Every attribute value below is copied verbatim from the captured response;
+nothing here is hand-invented.
+-->
+<div class="sitetable listing" id="siteTable_t3_1urgwis">
+
+  <!-- Real .thing.comment skeleton (ids/permalink trimmed from
+       r/AmItheAsshole capture), body swapped for the real giphy-embed .md
+       block captured from r/mildlyinteresting so both RedditComment.fromThing
+       and HtmlToMarkdown.convert are exercised together. -->
+  <div class="thing id-t1_owgspus noncollapsed comment" data-author="Effective-Pilot9800" data-fullname="t1_owgspus" data-permalink="/r/mildlyinteresting/comments/1urgwis/amongst_other_things_this_charity_shop_is_not/owgspus/" data-type="comment" id="thing_t1_owgspus">
+    <p class="parent"><a name="owgspus"></a></p>
+    <div class="entry unvoted">
+      <p class="tagline">
+        <a class="expand" href="javascript:void(0)" onclick="return togglecomment(this)">[&ndash;]</a>
+        <a class="author may-blank id-t2_2heiksdrpr" href="https://old.reddit.com/user/Effective-Pilot9800">Effective-Pilot9800</a>
+        <span class="score unvoted" title="1655">1655 points</span>
+        <time class="live-timestamp" datetime="2026-07-09T10:47:24+00:00" title="Thu Jul 9 10:47:24 2026 UTC">23 hours ago</time>
+      </p>
+      <form action="#" class="usertext warn-on-unload" id="form-t1_owgspuszvd">
+        <div class="usertext-body may-blank-within md-container">
+          <div class="md">
+            <p>"Not accepting." </p>
+            <p>Huh... ok.<br>
+            <a href="https://giphy.com/gifs/JWH857oECO0rC" target="_blank"><img height="200" src="https://external-preview.redd.it/PgE5NkbzuXk_559ICKYnz4dBK7d_YCWJXRpiAYe08N0.gif?width=492&amp;height=200&amp;s=10a46970bab23898fc545ef4bbfce08f5fdb005c" width="492"></a></p>
+          </div>
+        </div>
+      </form>
+      <ul class="flat-list buttons"></ul>
+    </div>
+
+    <div class="child">
+      <div class="sitetable listing" id="siteTable_t1_owgspus">
+
+        <!-- Real morechildren "load more comments" placeholder, trimmed
+             from r/mildlyinteresting. Anchor lives in .morecomments, has
+             class "button", href is javascript:void(0), and the child ids
+             are in the onclick call. -->
+        <div class="thing id-t1_owibxxw noncollapsed morechildren" data-fullname="t1_owibxxw" data-type="morechildren" id="thing_t1_owibxxw">
+          <p class="parent"></p>
+          <div class="entry unvoted">
+            <p class="tagline"></p>
+            <span class="morecomments"><a class="button" href="javascript:void(0)" id="more_t1_owibxxw" onclick="return morechildren(this, 't3_1urgwis', 'confidence', 'c1:t1_owibxxw,t1_owjp1z3,t1_owij7st,t1_owhxxvq', 'False')">load more comments<span class="gray"> (6 replies)</span></a></span>
+            <ul class="flat-list buttons"></ul>
+          </div>
+          <div class="child"></div>
+        </div>
+
+        <!-- Real "continue this thread" placeholder, trimmed from
+             r/mildlyinteresting. NOTE: the .thing itself carries class
+             "morerecursion", NOT "deepthread" -- "deepthread" is only the
+             class of the inner <span> wrapping the real-href anchor. -->
+        <div class="thing id-t1__ noncollapsed morerecursion" data-fullname="t1__" data-type="morerecursion" id="thing_t1__">
+          <p class="parent"></p>
+          <div class="entry unvoted">
+            <p class="tagline"></p>
+            <span class="deepthread"><a href="/r/mildlyinteresting/comments/1urgwis/amongst_other_things_this_charity_shop_is_not/owhyci7/">continue this thread</a></span>
+            <ul class="flat-list buttons"></ul>
+          </div>
+          <div class="child"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Real .md block, r/learnprogramming/comments/1urlnpm automod sidebar:
+     h1/h2, hr, <ol> with <strong> wrapped by <a>, and a plain <p>. -->
+<div class="md">
+  <h1>Welcome to LearnProgramming!</h1>
+  <hr>
+  <h2><a href="/r/learnprogramming/comments/61oly8/new_read_me_first/?st=j48sevyh&amp;sh=1af2421a"><strong>New? READ ME FIRST!</strong></a></h2>
+  <p>If you need help debugging, you must include:</p>
+  <ol>
+    <li>A <a href="/r/learnprogramming/wiki/index#wiki_writing_a_good_title"><strong>concise but descriptive title</strong></a>.</li>
+    <li>A <a href="/r/learnprogramming/wiki/index#wiki_writing_a_good_description_of_the_problem"><strong>good description</strong></a> of the problem.</li>
+  </ol>
+</div>
+
+<!-- Real .md block, r/vim/comments/1u7wvhg: <pre><code> fenced block with
+     raw newlines and an &amp;-encoded query string. -->
+<div class="md">
+  <p>Something like this?</p>
+  <pre><code>--url https://openlibrary.org/api/books?bibkeys=ISBN:0201558025,LCCN:93005405&amp;format=json
+
+# --jq is not curl parameter. If added, curl output would be piped through jq
+--url https://httpbin.org/post
+--header "Content-Type: application/json"
+</code></pre>
+</div>
+
+<!-- Real .md block, r/AmItheAsshole comment: blockquote and <del>. -->
+<div class="md">
+  <p><del>Best Of</del></p>
+  <blockquote>
+    <p>he yelled that I had no right to tell my brother what Mom had said and kept repeating, "Our fault for trusting you," louder every time I tried to respond.</p>
+  </blockquote>
+</div>
+
+<!-- Real .md block, r/AmItheAsshole AUTOMOD comment: nested <sup> for
+     "^^^^AUTOMOD" style small text. -->
+<div class="md">
+  <p><sup><sup><sup><sup>AUTOMOD</sup></sup></sup></sup> Thanks for posting!</p>
+</div>
+
+<!-- Real .md block, r/nfl/comments/1uqekhj: a standings <table> with
+     <thead>/<tbody>, right/left aligned cells, and <em> team links. -->
+<div class="md">
+  <table>
+    <thead>
+      <tr><th align="right">AFC</th><th align="left">East</th></tr>
+    </thead>
+    <tbody>
+      <tr><td align="right">z <a href="/r/patriots"><em>NE</em></a></td><td align="left">14-3</td></tr>
+      <tr><td align="right">y <a href="/r/buffalobills"><em>BUF</em></a></td><td align="left">12-5</td></tr>
+    </tbody>
+  </table>
+</div>

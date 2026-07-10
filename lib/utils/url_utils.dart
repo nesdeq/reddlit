@@ -14,7 +14,7 @@ class UrlUtils {
     const imageHosts = [
       'preview.redd.it',
       'i.redd.it',
-      'imgur.com',
+      'i.imgur.com',
       'giphy.com',
     ];
     for (final h in imageHosts) {

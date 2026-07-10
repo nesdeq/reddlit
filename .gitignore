@@ -38,3 +38,4 @@ android/**/GeneratedPluginRegistrant.java
 
 # Claude Code
 .claude/
+continue.claude

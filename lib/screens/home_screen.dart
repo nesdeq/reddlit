@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/reddit_post.dart';
 import '../services/reddit_service.dart';
+import '../services/auth_service.dart';
 import '../widgets/modal_widgets.dart';
 import '../widgets/sort_dialogs.dart';
 import '../widgets/post_list_mixin.dart';
@@ -29,7 +30,21 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   @override
   void initState() {
     super.initState();
+    AuthService.instance.addListener(_onAuthChanged);
     _bootstrap();
+  }
+
+  @override
+  void dispose() {
+    AuthService.instance.removeListener(_onAuthChanged);
+    super.dispose();
+  }
+
+  void _onAuthChanged() {
+    if (!mounted) return;
+    if (AuthService.instance.isAuthenticated && posts.isEmpty) {
+      _loadPostsFromDefault();
+    }
   }
 
   Future<void> _bootstrap() async {

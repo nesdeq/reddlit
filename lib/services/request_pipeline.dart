@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:http/http.dart' as http;
 
 import '../constants/http_constants.dart';
+import 'auth_service.dart';
 
 /// Throttled, deduped, retrying HTTP client for old.reddit.com HTML endpoints.
 ///
@@ -53,7 +54,7 @@ class RequestPipeline {
       try {
         response = await _client.get(
           uri,
-          headers: HttpConstants.browserHeaders,
+          headers: _headers(),
         );
       } catch (_) {
         _releaseSlot();
@@ -64,7 +65,15 @@ class RequestPipeline {
       _releaseSlot();
 
       if (response.statusCode == 200) {
+        if (_looksBlocked(response.body)) {
+          AuthService.instance.onBlocked();
+          return null;
+        }
         return response.body;
+      }
+      if (response.statusCode == 403) {
+        AuthService.instance.onBlocked();
+        return null;
       }
       final transient =
           response.statusCode == 502 ||
@@ -76,6 +85,17 @@ class RequestPipeline {
     }
     return null;
   }
+
+  Map<String, String> _headers() {
+    final headers = Map<String, String>.from(HttpConstants.browserHeaders);
+    final cookie = AuthService.instance.cookieHeader;
+    if (cookie != null && cookie.isNotEmpty) headers['Cookie'] = cookie;
+    return headers;
+  }
+
+  static bool _looksBlocked(String body) =>
+      body.contains('blocked by network security') ||
+      body.contains('Please try to login');
 
   Future<void> _acquireSlot() async {
     if (_active >= _maxConcurrent) {

@@ -16,6 +16,7 @@ class RedditComment {
   /// the parent thread at [morePermalink] and splice the replies in.
   final bool isMorePlaceholder;
   final List<String> moreChildrenIds;
+  final int replyCount;
 
   /// old.reddit permalink to fetch when expanding this placeholder. The JSON
   /// morechildren API is blocked, so we re-fetch the parent's HTML thread.
@@ -32,6 +33,7 @@ class RedditComment {
     this.replies = const [],
     this.isMorePlaceholder = false,
     this.moreChildrenIds = const [],
+    this.replyCount = 0,
     this.morePermalink,
   });
 
@@ -63,14 +65,21 @@ class RedditComment {
     required String parentPermalink,
     required String parentFullname,
   }) {
-    final anchor = thing.querySelector('.morecomments a, a.button');
+    final anchor =
+        thing.querySelector('.morecomments a, .deepthread a, a.button');
     final onclick = anchor?.attributes['onclick'] ?? '';
     final ids = _moreIdPattern
         .allMatches(onclick)
         .map((m) => m.group(0)!)
         .toList();
 
-    // "continue this thread →" carries a real href; "load more" uses onclick.
+    final grayText = anchor?.querySelector('.gray')?.text ??
+        thing.querySelector('.gray')?.text ??
+        '';
+    final replyCount =
+        int.tryParse(RegExp(r'\d+').firstMatch(grayText)?.group(0) ?? '') ??
+            ids.length;
+
     final href = anchor?.attributes['href'];
     final permalink = (href != null && href.startsWith('/'))
         ? 'https://old.reddit.com$href'
@@ -86,6 +95,7 @@ class RedditComment {
       parentId: parentFullname,
       isMorePlaceholder: true,
       moreChildrenIds: ids,
+      replyCount: replyCount,
       morePermalink: permalink,
     );
   }
@@ -114,7 +124,7 @@ class RedditComment {
     final out = <RedditComment>[];
     for (final el in sitetable.children) {
       if (!el.classes.contains('thing')) continue;
-      if (el.classes.contains('morechildren') || el.classes.contains('deepthread')) {
+      if (el.classes.contains('morechildren') || el.classes.contains('morerecursion')) {
         out.add(RedditComment.moreFromThing(
           el,
           depth: depth,
@@ -170,6 +180,7 @@ class RedditComment {
       replies: replies ?? this.replies,
       isMorePlaceholder: isMorePlaceholder,
       moreChildrenIds: moreChildrenIds,
+      replyCount: replyCount,
       morePermalink: morePermalink,
     );
   }

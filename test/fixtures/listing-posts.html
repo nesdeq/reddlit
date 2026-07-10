@@ -1,0 +1,50 @@
+<!--
+Trimmed real markup captured from old.reddit.com listing pages (hot/pics/videos),
+2026-07-10, via curl with a desktop Chrome User-Agent. Structure and attribute
+values are unmodified from the live response; only unrelated inline JS/CSS,
+vote arrows, flair spans, and other DOM noise not read by RedditPost.fromThing
+have been stripped. Three representative `div.thing` entries are kept:
+
+  1. t3_1usera3 - a self-text post (data-domain="self.Finanzen"). No <img> under
+     a.thumbnail (real reddit renders an empty <a class="thumbnail ... self">).
+  2. t3_1usdu73 - a direct i.redd.it image post.
+  3. t3_1usg4s2 - a v.redd.it video post. Note there is NO data-hls-url or
+     data-mpd-url attribute anywhere near div.thing on a listing page - reddit
+     only emits those on a nested #video-<id> element inside a data-cachedhtml
+     blob (itself just escaped text, not real markup) on listing pages, and
+     even on the post's own comments page they live on a *descendant* element,
+     never as a direct attribute of div.thing.
+-->
+<div id="siteTable" class="sitetable linklisting">
+
+  <div class=" thing id-t3_1usera3 linkflair linkflair-Arbeit odd&#32; link self" id="thing_t3_1usera3" data-fullname="t3_1usera3" data-type="link" data-is-gallery="false" data-author="Miserable_Welder_841" data-subreddit="Finanzen" data-timestamp="1783662279000" data-url="/r/Finanzen/comments/1usera3/heute_neigt_sich_meine_erste_arbeitswoche_mit_20/" data-permalink="/r/Finanzen/comments/1usera3/heute_neigt_sich_meine_erste_arbeitswoche_mit_20/" data-domain="self.Finanzen" data-comments-count="371" data-score="882" data-promoted="false" data-nsfw="false" data-spoiler="false">
+    <a class="thumbnail invisible-when-pinned self may-blank" data-event-action="thumbnail" href="/r/Finanzen/comments/1usera3/heute_neigt_sich_meine_erste_arbeitswoche_mit_20/"></a>
+    <div class="entry unvoted">
+      <a class="title may-blank" data-event-action="title" href="/r/Finanzen/comments/1usera3/heute_neigt_sich_meine_erste_arbeitswoche_mit_20/" tabindex="1">Heute neigt sich meine erste Arbeitswoche mit 20 Stunden Teilzeit dem Ende zu. Ich bin extrem glücklich - das kann durch kein Geld der Welt ausgeglichen werden. 🥰</a>
+    </div>
+  </div>
+  <div class="clearleft"></div>
+
+  <div class=" thing id-t3_1usdu73 linkflair even&#32; link" id="thing_t3_1usdu73" data-fullname="t3_1usdu73" data-type="link" data-is-gallery="false" data-author="Zeddi2892" data-subreddit="ichichs" data-timestamp="1783659343000" data-url="https://i.redd.it/agi1jkgz2cch1.jpeg" data-permalink="/r/ichichs/comments/1usdu73/ein_afd_politiker_und_ein_schlagersänger_gehen_in/" data-domain="i.redd.it" data-comments-count="141" data-score="2313" data-promoted="false" data-nsfw="false" data-spoiler="false">
+    <a class="thumbnail invisible-when-pinned may-blank outbound" data-event-action="thumbnail" href="https://i.redd.it/agi1jkgz2cch1.jpeg" rel="nofollow ugc"><img alt="" height="70" src="//preview.redd.it/agi1jkgz2cch1.jpeg?width=140&amp;height=140&amp;auto=webp&amp;s=849b5b7aa7e5cfa0bea88cc19e1dff51b6b2ee15" width="70"/></a>
+    <div class="entry unvoted">
+      <a class="title may-blank outbound" data-event-action="title" href="https://i.redd.it/agi1jkgz2cch1.jpeg" tabindex="1" rel="nofollow ugc">Ein afd Politiker und ein Schlagersänger gehen in eine Bar&#8230;</a>
+    </div>
+  </div>
+  <div class="clearleft"></div>
+
+  <div class=" thing id-t3_1usg4s2 linkflair odd&#32; link" id="thing_t3_1usg4s2" data-fullname="t3_1usg4s2" data-type="link" data-is-gallery="false" data-author="Meme-Botto9001" data-kind="video" data-subreddit="DINgore" data-timestamp="1783666875000" data-url="https://v.redd.it/a1q88btcpcch1" data-permalink="/r/DINgore/comments/1usg4s2/arme_einfach_rechtzeitig_wegziehen/" data-domain="v.redd.it" data-comments-count="83" data-score="803" data-promoted="false" data-nsfw="false" data-spoiler="false">
+    <a class="thumbnail invisible-when-pinned may-blank outbound" data-event-action="thumbnail" href="https://v.redd.it/a1q88btcpcch1" rel="nofollow ugc"><img alt="" height="70" src="//external-preview.redd.it/eDBuZjd4bmNwY2NoMa_F1HVRgXWvc6zCLLUxLIiXZyhXd2h5T3tR-q-NPmUO.png?width=140&amp;height=140&amp;crop=1:1,smart&amp;format=jpg&amp;auto=webp&amp;s=71ea8e6c0dc2712e9f97723917d8a4fb811bdbf8" width="70"/><div class="duration-overlay">0:59</div></a>
+    <div class="entry unvoted">
+      <a class="title may-blank outbound" data-event-action="title" href="https://v.redd.it/a1q88btcpcch1" tabindex="1" rel="nofollow ugc">Arme einfach rechtzeitig wegziehen!</a>
+      <!-- Real markup also has a div.expando.expando-uninitialized here whose
+           data-cachedhtml attribute contains an HTML-*escaped string* with a
+           nested #video-1usg4s2[data-hls-url][data-mpd-url] element. That is
+           never real, queryable markup on a listing page - omitted here
+           because it cannot be reached by any DOM selector, which is exactly
+           the behavior this fixture pins. -->
+    </div>
+  </div>
+  <div class="clearleft"></div>
+
+</div>

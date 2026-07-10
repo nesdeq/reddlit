@@ -7,7 +7,6 @@ import '../services/reddit_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../theme/theme_provider.dart';
-import '../utils/format_utils.dart';
 import '../utils/haptics.dart';
 import '../utils/navigation_helper.dart';
 import '../widgets/loading_widgets.dart';
@@ -214,21 +213,21 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                   ),
                   const SizedBox(height: AppTheme.spacing1),
 
-                  // Subscriber count
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.people_rounded,
-                        size: 14,
-                        color: colors.textSecondary,
-                      ),
-                      const SizedBox(width: AppTheme.spacing1),
-                      Text(
-                        '${FormatUtils.formatNumber(subreddit.subscribers)} members',
-                        style: colors.theme.textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
+                  if (subreddit.age != null)
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.cake_rounded,
+                          size: 14,
+                          color: colors.textSecondary,
+                        ),
+                        const SizedBox(width: AppTheme.spacing1),
+                        Text(
+                          subreddit.age!,
+                          style: colors.theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
 
                   // Description (if available)
                   if (subreddit.description != null &&

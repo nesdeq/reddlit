@@ -6,10 +6,9 @@ import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/url_utils.dart';
 import '../constants/app_constants.dart';
+import '../services/auth_service.dart';
 
-/// Jony Ive principle: Content speaks for itself
-/// Parse Reddit content: extract images/GIFs FIRST, then apply markdown to text
-class CommentContent extends StatefulWidget {
+class CommentContent extends StatelessWidget {
   final String content;
   final TextStyle? textStyle;
 
@@ -20,35 +19,11 @@ class CommentContent extends StatefulWidget {
   });
 
   @override
-  State<CommentContent> createState() => _CommentContentState();
-}
-
-class _CommentContentState extends State<CommentContent> {
-  // Pre-compiled regex patterns for better performance (static final)
-  static final _gifPattern =
-      RegExp(r'!\[gif\]\(giphy\|([A-Za-z0-9]+)(?:\|[^\)]+)?\)');
-  static final _standaloneUrlPattern = RegExp(
-    r'(?<!\]\()(?<!\()https?://[^\s\)]+',
-    caseSensitive: false,
-  );
-
-  late String _processedContent = _processContent(widget.content);
-
-  @override
-  void didUpdateWidget(covariant CommentContent oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.content != widget.content) {
-      _processedContent = _processContent(widget.content);
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final textStyle = widget.textStyle;
 
     return MarkdownBody(
-      data: _processedContent,
+      data: content,
       selectable: true,
       onTapLink: (text, href, title) {
         if (href != null) {
@@ -56,7 +31,7 @@ class _CommentContentState extends State<CommentContent> {
         }
       },
       builders: {
-        'image': CustomImageBuilder(colors),
+        'img': CustomImageBuilder(colors),
       },
       styleSheet: MarkdownStyleSheet(
         p: textStyle ?? colors.theme.textTheme.bodyMedium,
@@ -102,24 +77,8 @@ class _CommentContentState extends State<CommentContent> {
       ),
     );
   }
-
-  /// Process content: Convert Reddit GIFs and standalone images to markdown syntax
-  String _processContent(String text) {
-    // STEP 1: Convert Reddit GIF syntax to markdown images
-    // ![gif](giphy|ID) -> ![gif](https://i.giphy.com/media/ID/giphy.gif)
-    String processed = text.replaceAllMapped(_gifPattern, (match) =>
-      '![gif](https://i.giphy.com/media/${match.group(1)}/giphy.gif)');
-
-    // STEP 2: Convert standalone image URLs (not in markdown) to markdown images
-    // Only convert if it's an image URL
-    return processed.replaceAllMapped(_standaloneUrlPattern, (match) {
-      final url = match.group(0)!;
-      return UrlUtils.isImageUrl(url) ? '![]($url)' : url;
-    });
-  }
 }
 
-/// Custom image builder for markdown with better caching and error handling
 class CustomImageBuilder extends MarkdownElementBuilder {
   final ThemeHelper colors;
 
@@ -144,6 +103,7 @@ class CustomImageBuilder extends MarkdownElementBuilder {
               borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
               child: CachedNetworkImage(
                 imageUrl: imageUrl,
+                httpHeaders: AuthService.instance.mediaHeaders(imageUrl),
                 fit: BoxFit.cover,
                 memCacheWidth: memCacheWidth,
                 maxWidthDiskCache: memCacheWidth,

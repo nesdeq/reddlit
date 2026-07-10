@@ -1,5 +1,7 @@
 import 'package:html/dom.dart';
 
+import 'url_utils.dart';
+
 /// Converts the rendered HTML that old.reddit serves inside `.md` blocks back
 /// into Markdown, so the existing flutter_markdown rendering path keeps working.
 ///
@@ -23,6 +25,7 @@ class HtmlToMarkdown {
         final block = _block(node, indent: indent);
         if (block != null && block.trim().isNotEmpty) out.add(block);
       } else if (node is Text) {
+        if (node.text.trim().isEmpty) continue;
         final t = _collapse(node.text);
         if (t.isNotEmpty) out.add(t);
       }
@@ -129,6 +132,8 @@ class HtmlToMarkdown {
     switch (el.localName) {
       case 'a':
         final href = el.attributes['href'] ?? '';
+        final image = _asImageUrl(href);
+        if (image != null) return '![${el.text.trim()}]($image)';
         final text = _inline(el.nodes);
         return href.isEmpty ? text : '[$text]($href)';
       case 'strong':
@@ -147,13 +152,39 @@ class HtmlToMarkdown {
       case 'br':
         return '  \n';
       case 'img':
-        final src = el.attributes['src'] ?? '';
+        final raw = el.attributes['src'] ?? '';
         final alt = el.attributes['alt'] ?? '';
+        final src = _asImageUrl(raw) ?? raw;
         return src.isEmpty ? '' : '![$alt]($src)';
       default:
         return _inline(el.nodes);
     }
   }
+
+  static String? _asImageUrl(String raw) {
+    var url = raw.trim();
+    if (url.isEmpty) return null;
+    if (url.startsWith(_giphyPrefix)) {
+      final id = url.substring(_giphyPrefix.length).split('|').first;
+      return id.isEmpty ? null : 'https://i.giphy.com/media/$id/giphy.gif';
+    }
+    if (url.startsWith('//')) url = 'https:$url';
+    final giphyId = _giphyPageId(url);
+    if (giphyId != null) return 'https://i.giphy.com/media/$giphyId/giphy.gif';
+    return UrlUtils.isImageUrl(url) ? url : null;
+  }
+
+  static String? _giphyPageId(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return null;
+    final host = uri.host.toLowerCase();
+    if (host != 'giphy.com' && !host.endsWith('.giphy.com')) return null;
+    if (!uri.path.contains('/gifs/') || uri.pathSegments.isEmpty) return null;
+    final id = uri.pathSegments.last.split('-').last;
+    return id.isEmpty ? null : id;
+  }
+
+  static const String _giphyPrefix = 'giphy|';
 
   /// Collapse runs of insignificant HTML whitespace to single spaces.
   static String _collapse(String text) =>

@@ -105,7 +105,7 @@ class _CommentTileState extends State<CommentTile> {
   }
 
   Widget _buildMoreTile(ThemeHelper colors) {
-    final count = widget.comment.moreChildrenIds.length;
+    final count = widget.comment.replyCount;
     final label = count > 0 ? 'Load $count more replies' : 'Continue thread';
     return InkWell(
       onTap: _loadingMore ? null : _handleLoadMore,

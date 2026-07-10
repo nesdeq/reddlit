@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../theme/theme_provider.dart';
 import '../widgets/loading_widgets.dart';
 import '../widgets/modal_widgets.dart';
+import '../widgets/login.dart';
+import '../widgets/login_sheet.dart';
+import '../services/auth_service.dart';
 import '../utils/haptics.dart';
 import '../constants/app_constants.dart';
 
@@ -98,7 +102,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const _ApiKeyCard(),
 
           const SizedBox(height: 1),
-          Container(
+          Material(
             color: colors.surfaceColor,
             child: ListTile(
               title: const Text('Summary Language'),
@@ -112,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppTheme.spacing4),
 
           const _SectionHeader('Appearance'),
-          Container(
+          Material(
             color: colors.surfaceColor,
             child: Column(
               children: [
@@ -143,7 +147,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppTheme.spacing4),
 
           const _SectionHeader('Subreddit Settings'),
-          Container(
+          Material(
             color: colors.surfaceColor,
             child: Column(
               children: [
@@ -178,6 +182,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ],
             ),
           ),
+
+          const SizedBox(height: AppTheme.spacing4),
+
+          const _SectionHeader('Reddit Account'),
+          const _AccountCard(),
 
           const SizedBox(height: AppTheme.spacing4),
 
@@ -340,6 +349,153 @@ class _AboutCard extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _AccountCard extends StatelessWidget {
+  const _AccountCard();
+
+  Future<void> _test(BuildContext context) async {
+    final error = await AuthService.instance.validate();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(error ?? 'Session works — you are logged in.')),
+    );
+  }
+
+  void _copyToken(BuildContext context, String token) {
+    Clipboard.setData(ClipboardData(text: token));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Session token copied to clipboard.')),
+    );
+  }
+
+  void _showToken(BuildContext context, String token) {
+    final colors = ThemeHelper(context);
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        backgroundColor: colors.surfaceColor,
+        title: const Text('Reddit session token'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            token,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              _copyToken(context, token);
+            },
+            child: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = ThemeHelper(context);
+    return Material(
+      color: colors.surfaceColor,
+      child: ListenableBuilder(
+        listenable: AuthService.instance,
+        builder: (context, _) {
+          final auth = AuthService.instance;
+          final signedIn = auth.isAuthenticated;
+          return Column(
+            children: [
+              ListTile(
+                leading: Icon(
+                  !signedIn
+                      ? Icons.person_off_rounded
+                      : (auth.validated
+                          ? Icons.verified_rounded
+                          : Icons.help_outline_rounded),
+                  color: !signedIn
+                      ? colors.textSecondary
+                      : (auth.validated ? Colors.green : Colors.orange),
+                ),
+                title: Text(!signedIn
+                    ? 'Not signed in'
+                    : (auth.validated ? 'Session active' : 'Session saved')),
+                subtitle: Text(!signedIn
+                    ? 'Browsing anonymously. Sign in if your network is blocked.'
+                    : (auth.validated
+                        ? 'Verified logged in to Reddit.'
+                        : 'Tap Test connection to verify it works.')),
+              ),
+              Divider(height: 1, color: colors.dividerColor),
+              if (!signedIn) ...[
+                ListTile(
+                  title: const Text('Log in with Reddit'),
+                  subtitle: Text(Login.webViewSupported
+                      ? 'Opens Reddit sign-in inside the app.'
+                      : 'Opens Reddit sign-in in your browser.'),
+                  trailing: Icon(Icons.chevron_right_rounded,
+                      color: colors.textTertiary),
+                  onTap: () => Login.start(context),
+                ),
+                Divider(height: 1, color: colors.dividerColor),
+                ListTile(
+                  title: const Text('Paste session cookie'),
+                  subtitle: const Text('Backup method'),
+                  trailing: Icon(Icons.chevron_right_rounded,
+                      color: colors.textTertiary),
+                  onTap: () => LoginSheet.show(context),
+                ),
+              ] else ...[
+                ListTile(
+                  title: const Text('Test connection'),
+                  trailing: auth.busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(Icons.refresh_rounded, color: colors.textTertiary),
+                  onTap: auth.busy ? null : () => _test(context),
+                ),
+                Divider(height: 1, color: colors.dividerColor),
+                ListTile(
+                  title: const Text('Session token'),
+                  subtitle: Text(
+                    auth.cookieHeader ?? '',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(Icons.copy_rounded, color: colors.textTertiary),
+                    tooltip: 'Copy token',
+                    onPressed: () =>
+                        _copyToken(context, auth.cookieHeader ?? ''),
+                  ),
+                  onTap: () => _showToken(context, auth.cookieHeader ?? ''),
+                ),
+                Divider(height: 1, color: colors.dividerColor),
+                ListTile(
+                  title: Text('Log out',
+                      style: TextStyle(color: colors.theme.colorScheme.error)),
+                  onTap: () => AuthService.instance.logout(),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }

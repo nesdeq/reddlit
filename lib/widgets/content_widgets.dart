@@ -4,6 +4,7 @@ import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/format_utils.dart';
 import '../utils/url_utils.dart';
+import '../services/auth_service.dart';
 
 /// Content display widgets (images, links, metadata, engagement)
 class ContentWidgets {
@@ -47,6 +48,7 @@ class ContentWidgets {
               borderRadius: BorderRadius.circular(4),
               child: CachedNetworkImage(
                 imageUrl: faviconUrl,
+                httpHeaders: AuthService.instance.mediaHeaders(faviconUrl),
                 width: 20,
                 height: 20,
                 fit: BoxFit.cover,
@@ -193,6 +195,7 @@ class ContentWidgets {
 
     Widget imageWidget = CachedNetworkImage(
       imageUrl: imageUrl,
+      httpHeaders: AuthService.instance.mediaHeaders(imageUrl),
       fit: fit,
       memCacheWidth: memCacheWidth,
       maxWidthDiskCache: memCacheWidth,
