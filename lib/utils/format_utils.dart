@@ -38,7 +38,13 @@ class FormatUtils {
   /// to DateTime. Returns the epoch on missing/garbage input.
   static DateTime fromRedditMillis(String? millis) {
     final ms = int.tryParse(millis ?? '') ?? 0;
-    return DateTime.fromMillisecondsSinceEpoch(ms);
+    try {
+      return DateTime.fromMillisecondsSinceEpoch(ms);
+    } on RangeError {
+      // A value outside DateTime's valid millisecond range would otherwise crash
+      // the whole parse; fall back to the epoch like other garbage input.
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
   }
 
   /// Convert an ISO-8601 timestamp (old.reddit `<time datetime=...>`) to

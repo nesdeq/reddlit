@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
@@ -136,13 +137,9 @@ class RedditService {
     required String parentFullname,
     String sort = SortConstants.confidence,
   }) async {
-    final base = Uri.parse(permalink);
-    final uri = Uri.https(
-      base.host,
-      base.path,
-      {...base.queryParameters, 'sort': sort},
-    );
-    final comments = await _fetchAndParse<List<RedditComment>>(uri, (doc) {
+    final comments =
+        await _fetchAndParse<List<RedditComment>>(moreCommentsUri(permalink, sort),
+            (doc) {
       final table = doc.querySelector('.commentarea .sitetable');
       if (table == null) return const <RedditComment>[];
       return RedditComment.parseThings(table, 0, permalink, parentFullname);
@@ -309,6 +306,18 @@ class RedditService {
       return _commentsUri(subreddit, postId, sort: sort);
     }
     return Uri.https(_host, permalink, {'sort': sort});
+  }
+
+  /// The fetch URL for expanding a "more comments" placeholder. [permalink] is a
+  /// full URL; Uri.parse already normalizes a raw non-ASCII path to its
+  /// percent-encoded form, so only the query is replaced. Rebuilding from
+  /// base.path would double-encode (%C3%BC -> %25C3%25BC) and 404 the thread.
+  @visibleForTesting
+  Uri moreCommentsUri(String permalink, String sort) {
+    final base = Uri.parse(permalink);
+    return base.replace(
+      queryParameters: {...base.queryParameters, 'sort': sort},
+    );
   }
 
   Future<T> _withCache<T>({

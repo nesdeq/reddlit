@@ -6,6 +6,8 @@ import 'package:reddlit/models/reddit_post.dart';
 import 'package:reddlit/models/reddit_comment.dart';
 import 'package:reddlit/models/reddit_user.dart';
 import 'package:reddlit/models/subreddit.dart';
+import 'package:reddlit/services/reddit_service.dart';
+import 'package:reddlit/services/request_pipeline.dart';
 import 'package:reddlit/utils/html_to_markdown.dart';
 import 'package:reddlit/utils/url_utils.dart';
 
@@ -89,6 +91,17 @@ void main() {
       expect(uri.toString(), contains('%C3%BC'));
       expect(uri.toString(), isNot(contains('überwachung')));
     });
+
+    test('an out-of-range data-timestamp does not crash the parse', () {
+      final t = _thing(
+          '<div class="thing" data-fullname="t3_x" data-domain="self.x" '
+          'data-url="/r/x/comments/x/t/" data-author="u" data-subreddit="x" '
+          'data-score="1" data-comments-count="1" '
+          'data-timestamp="9000000000000000000"><a class="title">T</a></div>');
+      expect(() => RedditPost.fromThing(t), returnsNormally);
+      expect(RedditPost.fromThing(t).created,
+          DateTime.fromMillisecondsSinceEpoch(0));
+    });
   });
 
   group('RedditComment placeholders', () {
@@ -152,6 +165,29 @@ void main() {
     test('inter-paragraph whitespace does not create spurious blocks', () {
       expect(_toMd('<p>a</p>\n\n<p>b</p>'), 'a\n\nb');
     });
+
+    test('pathologically nested markup degrades, does not overflow the stack', () {
+      String nest(String open, String close, int n) {
+        final b = StringBuffer();
+        for (var i = 0; i < n; i++) {
+          b.write(open);
+        }
+        b.write('x');
+        for (var i = 0; i < n; i++) {
+          b.write(close);
+        }
+        return b.toString();
+      }
+
+      // The two confirmed overflow mechanisms: block-recursion (blockquote/div)
+      // and el.text over a deep subtree (the image-link alt).
+      for (final html in [
+        nest('<blockquote>', '</blockquote>', 40000),
+        '<a href="x.jpg">${nest('<span>', '</span>', 40000)}</a>',
+      ]) {
+        expect(() => _toMd(html), returnsNormally);
+      }
+    });
   });
 
   group('UrlUtils.isImageUrl', () {
@@ -201,6 +237,52 @@ void main() {
       expect(s.description, 'Flutter news.');
       expect(s.iconUrl,
           'https://styles.redditmedia.com/t5_x/styles/communityIcon_a.png?width=64&s=1');
+    });
+  });
+
+  group('RedditService.moreCommentsUri', () {
+    test('single-encodes a non-ascii permalink and sets the sort', () {
+      final uri = RedditService().moreCommentsUri(
+        'https://old.reddit.com/r/de/comments/1ushh0x/x_überwachung_y/',
+        'confidence',
+      );
+      expect(uri.toString(), contains('%C3%BC'));
+      expect(uri.toString(), isNot(contains('%25C3'))); // not double-encoded
+      expect(uri.queryParameters['sort'], 'confidence');
+    });
+  });
+
+  group('RequestPipeline.looksBlocked', () {
+    test('fires on a bare block / verification interstitial', () {
+      expect(
+          RequestPipeline.looksBlocked(
+              '<html><body>you have been blocked by network security</body></html>'),
+          isTrue);
+      expect(
+          RequestPipeline.looksBlocked(
+              '<html><body>Please wait for verification</body></html>'),
+          isTrue);
+    });
+
+    test('does NOT fire when a trigger phrase is inside real content', () {
+      expect(
+          RequestPipeline.looksBlocked(
+              '<div id="siteTable"><div class="thing" data-fullname="t3_x">'
+              '<a class="title">blocked by network security?</a></div></div>'),
+          isFalse);
+      expect(
+          RequestPipeline.looksBlocked(
+              '<div class="commentarea"><div class="md">Please try to login worked</div></div>'),
+          isFalse);
+      expect(
+          RequestPipeline.looksBlocked(
+              '<div data-testid="search-community"><p>Please wait for verification memes</p></div>'),
+          isFalse);
+    });
+
+    test('no trigger phrase, no block', () {
+      expect(RequestPipeline.looksBlocked('<div id="siteTable">ok</div>'),
+          isFalse);
     });
   });
 }

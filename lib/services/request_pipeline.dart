@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../constants/http_constants.dart';
@@ -65,7 +66,7 @@ class RequestPipeline {
       _releaseSlot();
 
       if (response.statusCode == 200) {
-        if (_looksBlocked(response.body)) {
+        if (looksBlocked(response.body)) {
           AuthService.instance.onBlocked();
           return null;
         }
@@ -93,10 +94,21 @@ class RequestPipeline {
     return headers;
   }
 
-  static bool _looksBlocked(String body) =>
-      body.contains('blocked by network security') ||
-      body.contains('Please try to login') ||
-      body.contains('Please wait for verification');
+  @visibleForTesting
+  static bool looksBlocked(String body) {
+    final flagged = body.contains('blocked by network security') ||
+        body.contains('Please try to login') ||
+        body.contains('Please wait for verification');
+    if (!flagged) return false;
+    // A real listing / comments / community-search response carries one of these
+    // containers; reddit's block or verification interstitial does not. Requiring
+    // their absence stops a post title or comment that merely quotes a trigger
+    // phrase from blanking the page and wiping the session.
+    final hasContent = body.contains('id="siteTable"') ||
+        body.contains('commentarea') ||
+        body.contains('data-testid="search-community"');
+    return !hasContent;
+  }
 
   Future<void> _acquireSlot() async {
     if (_active >= _maxConcurrent) {

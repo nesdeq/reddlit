@@ -1,7 +1,7 @@
 name: reddlit
 description: A minimalist Reddit reader with AI-powered article summarization
 publish_to: 'none'
-version: 1.3.0+9
+version: 1.4.0+10
 
 environment:
   sdk: ^3.9.2
