@@ -176,10 +176,6 @@ class RedditComment {
     return 0;
   }
 
-  /// Whether this comment or one of its replies, at any depth, is [id].
-  bool contains(String id) =>
-      this.id == id || replies.any((reply) => reply.contains(id));
-
   RedditComment copyWith({
     List<RedditComment>? replies,
     int? depth,

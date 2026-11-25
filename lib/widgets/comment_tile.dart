@@ -12,7 +12,7 @@ import 'content_widgets.dart';
 class CommentTile extends StatefulWidget {
   final RedditComment comment;
 
-  /// The comment a link pointed at: highlighted, and never hidden by auto-collapse.
+  /// The comment a link pointed at, shown highlighted.
   final String? focusedId;
 
   /// Author of the comment this one answers, shown where indentation has stopped.
@@ -39,15 +39,6 @@ class _CommentTileState extends State<CommentTile> {
 
   late final TapGestureRecognizer _authorTap = TapGestureRecognizer()
     ..onTap = () => widget.onAuthorTap?.call(widget.comment.author);
-
-  @override
-  void initState() {
-    super.initState();
-    final focusedId = widget.focusedId;
-    _isCollapsed =
-        widget.comment.depth >= AppConstants.commentAutoCollapseDepth &&
-        !(focusedId != null && widget.comment.contains(focusedId));
-  }
 
   @override
   void dispose() {

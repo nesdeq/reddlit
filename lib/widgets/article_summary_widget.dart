@@ -128,8 +128,6 @@ class ArticleSummaryWidget {
                 style: colors.theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: AppTheme.spacing4),
               CommentContent(

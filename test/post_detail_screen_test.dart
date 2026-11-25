@@ -8,7 +8,6 @@ import 'package:reddlit/models/reddit_comment.dart';
 import 'package:reddlit/models/reddit_post.dart';
 import 'package:reddlit/screens/post_detail_screen.dart';
 import 'package:reddlit/services/reddit_service.dart';
-import 'package:reddlit/services/request_pipeline.dart';
 import 'package:reddlit/utils/reddit_link.dart';
 
 RedditPost _post(String id) => RedditPost(
@@ -31,7 +30,7 @@ void main() {
       (tester) async {
     await http.runWithClient(() async {
       await tester.pumpWidget(MaterialApp(home: PostDetailScreen(post: _post('p1'))));
-      await tester.pump(RequestPipeline.minGap);
+      await tester.pumpAndSettle();
       expect(find.text('No comments yet'), findsNothing);
       expect(find.text('Failed to load comments.'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
@@ -71,8 +70,7 @@ void main() {
       await tester.pumpWidget(MaterialApp(home: PostDetailScreen(post: post)));
       await tester.pump();
       await tester.tap(find.text('Load 5 more replies'));
-      await tester.pump(RequestPipeline.minGap);
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.text('Load 5 more replies'), findsOneWidget);
       final cached = service.peekComments('s', 'p2')!.comments.single;
       expect(cached.replies.single.id, placeholder.id);

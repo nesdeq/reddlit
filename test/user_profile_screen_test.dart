@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:reddlit/screens/user_profile_screen.dart';
-import 'package:reddlit/services/request_pipeline.dart';
 import 'package:reddlit/services/settings_provider.dart';
 
 void main() {
@@ -19,9 +18,7 @@ void main() {
           create: (_) => SettingsProvider(),
           child: const MaterialApp(home: UserProfileScreen(username: 'someone')),
         ));
-        // User info dispatches first; the post page waits one pipeline gap.
-        await tester.pump(RequestPipeline.minGap);
-        await tester.pump(RequestPipeline.minGap);
+        await tester.pumpAndSettle();
         expect(find.text('Karma'), findsOneWidget);
         expect(find.text('No posts yet'), findsNothing);
         expect(find.text('Failed to load posts.'), findsOneWidget);

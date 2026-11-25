@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'services/reddit_cache.dart';
 import 'services/settings_provider.dart';
 import 'theme/app_theme.dart';
 import 'widgets/auth_gate.dart';
@@ -15,6 +16,7 @@ Future<void> main() async {
       yield LicenseEntryWithLineBreaks([font], await rootBundle.loadString(license));
     }
   });
+  WidgetsBinding.instance.addObserver(_MemoryPressure());
   await AuthService.instance.load();
 
   SystemChrome.setSystemUIOverlayStyle(
@@ -29,6 +31,11 @@ Future<void> main() async {
       child: const ReddlitApp(),
     ),
   );
+}
+
+class _MemoryPressure with WidgetsBindingObserver {
+  @override
+  void didHaveMemoryPressure() => RedditCache.instance.clear();
 }
 
 class ReddlitApp extends StatelessWidget {

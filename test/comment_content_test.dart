@@ -1,10 +1,10 @@
+import 'package:flutter/gestures.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:reddlit/screens/post_detail_screen.dart';
-import 'package:reddlit/services/request_pipeline.dart';
 import 'package:reddlit/widgets/comment_content.dart';
 
 final _requested = <String>[];
@@ -29,10 +29,9 @@ void main() {
     await tester.tapAt(
       tester.getTopLeft(find.byType(CommentContent)) + const Offset(8, 8),
     );
-    // The tap resolves once a double tap is ruled out; each request then waits its gap.
-    for (var i = 0; i < 3; i++) {
-      await tester.pump(RequestPipeline.minGap);
-    }
+    // The tap resolves once a double tap is ruled out.
+    await tester.pump(kDoubleTapTimeout);
+    await tester.pumpAndSettle();
   }
 
   testWidgets('a reddit link inside a comment opens in the app', (tester) async {

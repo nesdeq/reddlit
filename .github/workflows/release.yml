@@ -39,9 +39,11 @@ jobs:
           EOF
 
       - name: Build APK
-        run: flutter build apk --release
+        run: |
+          flutter build apk --release
+          mv build/app/outputs/flutter-apk/app-release.apk reddlit.apk
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v3
         with:
-          files: build/app/outputs/flutter-apk/app-release.apk
+          files: reddlit.apk

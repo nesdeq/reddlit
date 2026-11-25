@@ -45,24 +45,15 @@ class UrlUtils {
         url.endsWith('.mov');
   }
 
-  static final _youtubePatterns = [
-    RegExp(r'youtube\.com/watch\?v=([^&]+)'),
-    RegExp(r'youtu\.be/([^?]+)'),
-    RegExp(r'youtube\.com/embed/([^?]+)'),
-    RegExp(r'youtube\.com/v/([^?]+)'),
-    RegExp(r'youtube\.com/shorts/([^?/]+)'),
-  ];
+  /// A video id is 11 URL-safe base64 characters, after any of the address forms YouTube uses.
+  static final _youtubeId = RegExp(
+    r'(?:youtube\.com/(?:watch\?(?:.*&)?v=|embed/|v/|shorts/)|youtu\.be/)'
+    r'([A-Za-z0-9_-]{11})(?![A-Za-z0-9_-])',
+  );
 
-  /// Extract YouTube video ID from various YouTube URL formats
-  static String? extractYoutubeId(String url) {
-    for (final pattern in _youtubePatterns) {
-      final match = pattern.firstMatch(url);
-      if (match != null && match.groupCount >= 1) {
-        return match.group(1);
-      }
-    }
-    return null;
-  }
+  /// The video id in a YouTube URL; null when [url] carries no well-formed one.
+  static String? extractYoutubeId(String url) =>
+      _youtubeId.firstMatch(url)?.group(1);
 
   /// Extract domain from URL, with fallback
   static String extractDomain(String url, {String fallback = ''}) {

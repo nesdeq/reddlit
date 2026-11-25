@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -8,7 +7,7 @@ import 'package:http/http.dart' as http;
 import '../constants/http_constants.dart';
 import 'auth_service.dart';
 
-/// Reddit HTML fetcher: [_maxConcurrent] in flight, [minGap] apart, backoff retries on 502/503/504 and network errors.
+/// Reddit HTML fetcher: at most [maxConcurrent] requests in flight, paced by the `Retry-After` reddit sends, one retry on a transient failure.
 class RequestPipeline {
   RequestPipeline._() : _client = http.Client(), _now = DateTime.now;
 
@@ -21,12 +20,10 @@ class RequestPipeline {
 
   static final RequestPipeline instance = RequestPipeline._();
 
-  static const int _maxConcurrent = 2;
+  /// A browser's per-host connection limit; the request headers present one.
   @visibleForTesting
-  static const Duration minGap = Duration(milliseconds: 2000);
-  static const int _maxRetries = 3;
-  static const Duration _backoffBase = Duration(milliseconds: 800);
-  static const int _jitterMaxMs = 300;
+  static const int maxConcurrent = 6;
+  static const _transientStatuses = {429, 502, 503, 504};
   static const _redirectStatuses = {301, 302, 303, 307, 308};
 
   /// Same limit dart:io applies when it follows redirects.
@@ -35,12 +32,13 @@ class RequestPipeline {
 
   final http.Client _client;
   final DateTime Function() _now;
-  final Random _rng = Random();
 
   final Map<String, Future<String?>> _inFlight = {};
   final List<Completer<void>> _waiters = [];
   int _active = 0;
-  DateTime _lastDispatch = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// End of the pause reddit last asked for through `Retry-After`.
+  DateTime _notBefore = DateTime.fromMillisecondsSinceEpoch(0);
 
   /// Fetch the raw HTML body for [uri]. Identical in-flight requests are
   /// coalesced. Returns `null` on terminal failure.
@@ -56,18 +54,14 @@ class RequestPipeline {
   }
 
   Future<String?> _run(Uri uri) async {
-    for (var attempt = 0; attempt <= _maxRetries; attempt++) {
-      await _acquireSlot();
-      http.Response? response;
+    for (final lastAttempt in const [false, true]) {
+      final http.Response response;
       try {
-        response = await _get(uri);
+        response = await _dispatch(() => _get(uri));
       } catch (_) {
-        _releaseSlot();
-        if (attempt == _maxRetries) return null;
-        await _backoff(attempt, null);
+        if (lastAttempt) return null;
         continue;
       }
-      _releaseSlot();
 
       if (response.statusCode == 200) {
         if (looksBlocked(response.body)) {
@@ -80,24 +74,39 @@ class RequestPipeline {
         AuthService.instance.onBlocked();
         return null;
       }
-      final transient =
-          response.statusCode == 502 ||
-          response.statusCode == 503 ||
-          response.statusCode == 504;
-      if (!transient) return null;
-      if (attempt == _maxRetries) return null;
-      await _backoff(attempt, response.headers['retry-after']);
+      if (!_transientStatuses.contains(response.statusCode)) return null;
     }
     return null;
   }
 
-  /// Where [uri] redirects to, from one throttled request; null when it does not redirect or fails.
+  /// Where [uri] redirects to, from one paced request; null when it does not redirect or fails.
   Future<Uri?> getRedirect(Uri uri) async {
-    await _acquireSlot();
     try {
-      return _redirectTarget(uri, await _send(uri));
+      return _redirectTarget(uri, await _dispatch(() => _send(uri)));
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Runs [send] in a slot once reddit's last `Retry-After` has passed, and notes the one it answers with.
+  Future<http.Response> _dispatch(
+    Future<http.Response> Function() send,
+  ) async {
+    await _acquireSlot();
+    try {
+      for (
+        var wait = _notBefore.difference(_now());
+        wait > Duration.zero;
+        wait = _notBefore.difference(_now())
+      ) {
+        await Future<void>.delayed(wait);
+      }
+      final response = await send();
+      final seconds = int.tryParse(response.headers['retry-after'] ?? '');
+      if (seconds != null && seconds > 0) {
+        _notBefore = _now().add(Duration(seconds: seconds));
+      }
+      return response;
     } finally {
       _releaseSlot();
     }
@@ -160,41 +169,21 @@ class RequestPipeline {
   }
 
   Future<void> _acquireSlot() async {
-    if (_active >= _maxConcurrent) {
-      final waiter = Completer<void>();
-      _waiters.add(waiter);
-      await waiter.future;
+    if (_active < maxConcurrent) {
+      _active++;
+      return;
     }
-    _active++;
-
-    // Reserve the slot before waiting so requests that wait together are still spaced.
-    final now = _now();
-    final next = _lastDispatch.add(minGap);
-    _lastDispatch = next.isAfter(now) ? next : now;
-    if (_lastDispatch.isAfter(now)) {
-      await Future<void>.delayed(_lastDispatch.difference(now));
-    }
+    final waiter = Completer<void>();
+    _waiters.add(waiter);
+    await waiter.future;
   }
 
+  /// A waiting request inherits the slot, so the count in flight never passes [maxConcurrent].
   void _releaseSlot() {
-    _active--;
-    if (_waiters.isNotEmpty) {
+    if (_waiters.isEmpty) {
+      _active--;
+    } else {
       _waiters.removeAt(0).complete();
     }
-  }
-
-  Future<void> _backoff(int attempt, String? retryAfterHeader) async {
-    final retryAfter = retryAfterHeader == null
-        ? null
-        : int.tryParse(retryAfterHeader.trim());
-    Duration wait;
-    if (retryAfter != null) {
-      wait = Duration(seconds: retryAfter);
-    } else {
-      final multiplier = 1 << attempt;
-      final jitter = _rng.nextInt(_jitterMaxMs);
-      wait = _backoffBase * multiplier + Duration(milliseconds: jitter);
-    }
-    await Future.delayed(wait);
   }
 }

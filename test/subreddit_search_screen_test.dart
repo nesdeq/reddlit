@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 import 'package:reddlit/screens/subreddit_search_screen.dart';
-import 'package:reddlit/services/request_pipeline.dart';
 
 // The pipeline singleton binds the first zone's client, so every test answers
 // through this switchable handler.
@@ -17,7 +16,7 @@ Future<void> _search(WidgetTester tester, String query) async {
   await tester.pumpWidget(const MaterialApp(home: SubredditSearchScreen()));
   await tester.enterText(find.byType(TextField), query);
   await tester.pump(const Duration(milliseconds: 400));
-  await tester.pump(RequestPipeline.minGap);
+  await tester.pump();
 }
 
 void main() {

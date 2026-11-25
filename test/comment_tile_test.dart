@@ -37,19 +37,11 @@ RedditComment _chain(int last) {
 }
 
 void main() {
-  Future<void> show(
-    WidgetTester tester,
-    RedditComment c, {
-    String? focusedId,
-  }) => tester.pumpWidget(
+  Future<void> show(WidgetTester tester, RedditComment c) => tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: SingleChildScrollView(
-          child: CommentTile(
-            key: const ValueKey('c'),
-            comment: c,
-            focusedId: focusedId,
-          ),
+          child: CommentTile(key: const ValueKey('c'), comment: c),
         ),
       ),
     ),
@@ -58,35 +50,36 @@ void main() {
   testWidgets('a collapsed comment counts the replies it has now', (
     tester,
   ) async {
-    await show(
-      tester,
-      _comment('c', depth: 5, replies: [_comment('r1', depth: 6)]),
-    );
+    await show(tester, _comment('c', replies: [_comment('r1', depth: 1)]));
+    await tester.tap(find.byIcon(Icons.expand_more_rounded).first);
+    await tester.pumpAndSettle();
     expect(find.text('+1'), findsOneWidget);
 
     await show(
       tester,
       _comment(
         'c',
-        depth: 5,
         replies: [
-          _comment('r1', depth: 6),
-          _comment('r2', depth: 6, replies: [_comment('r3', depth: 7)]),
+          _comment('r1', depth: 1),
+          _comment('r2', depth: 1, replies: [_comment('r3', depth: 2)]),
         ],
       ),
     );
     expect(find.text('+3'), findsOneWidget);
   });
 
-  testWidgets('a deep thread keeps its text column on a phone', (tester) async {
+  testWidgets('a deep thread opens fully and keeps its text column on a phone', (
+    tester,
+  ) async {
     const phoneWidth = 360.0;
     await tester.binding.setSurfaceSize(const Size(phoneWidth, 800));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
-    await show(tester, _chain(12), focusedId: 'c12');
+    await show(tester, _chain(12));
 
+    expect(find.text('body c12'), findsOneWidget);
     expect(
-      tester.getSize(find.byKey(const ValueKey('c11'))).width,
+      tester.getSize(find.byKey(const ValueKey('c12'))).width,
       phoneWidth -
           2 * AppTheme.spacing4 -
           AppConstants.commentMaxIndentDepth * AppConstants.commentIndentStep,
@@ -106,20 +99,9 @@ void main() {
     tester,
   ) async {
     final last = AppConstants.commentMaxIndentDepth + 1;
-    await show(tester, _chain(last), focusedId: 'c$last');
+    await show(tester, _chain(last));
 
     expect(find.text('u/author${last - 1}'), findsOneWidget);
     expect(find.text('u/author${last - 2}'), findsNothing);
-  });
-
-  testWidgets('auto-collapse never hides the linked comment', (tester) async {
-    final depth = AppConstants.commentAutoCollapseDepth + 1;
-
-    await show(tester, _chain(depth));
-    expect(find.text('body c$depth'), findsNothing);
-
-    await tester.pumpWidget(const SizedBox());
-    await show(tester, _chain(depth), focusedId: 'c$depth');
-    expect(find.text('body c$depth'), findsOneWidget);
   });
 }

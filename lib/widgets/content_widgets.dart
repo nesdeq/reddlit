@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../constants/app_constants.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/format_utils.dart';
@@ -214,13 +215,11 @@ class ContentWidgets {
     );
   }
 
-  /// Cached network image with consistent placeholder and error handling.
-  /// Caps in-memory decode size at screen-width × devicePixelRatio to keep
-  /// feed thumbnails from holding full-resolution bitmaps in RAM.
+  /// Cached network image, decoded no wider than the screen. Cropped to [aspectRatio] when given;
+  /// otherwise shown whole at its own ratio, with the feed ratio holding its place until it loads.
   static Widget cachedImage({
     required BuildContext context,
     required String imageUrl,
-    BoxFit fit = BoxFit.cover,
     double? aspectRatio,
     BorderRadius? borderRadius,
   }) {
@@ -228,41 +227,48 @@ class ContentWidgets {
     final media = MediaQuery.of(context);
     final memCacheWidth = (media.size.width * media.devicePixelRatio).round();
 
+    Widget standIn(Widget child) {
+      final box = Container(
+        color: colors.dividerColor,
+        child: Center(child: child),
+      );
+      return aspectRatio != null
+          ? box
+          : AspectRatio(
+              aspectRatio: AppConstants.feedMediaAspectRatio,
+              child: box,
+            );
+    }
+
     Widget imageWidget = CachedNetworkImage(
       imageUrl: imageUrl,
       httpHeaders: AuthService.instance.mediaHeaders(imageUrl),
-      fit: fit,
+      fit: BoxFit.cover,
       memCacheWidth: memCacheWidth,
       maxWidthDiskCache: memCacheWidth,
-      placeholder: (context, url) => Container(
-        color: colors.dividerColor,
-        child: Center(
-          child: CircularProgressIndicator(
-            color: colors.accentColor,
-            strokeWidth: 2,
-          ),
+      placeholder: (context, url) => standIn(
+        CircularProgressIndicator(
+          color: colors.accentColor,
+          strokeWidth: 2,
         ),
       ),
-      errorWidget: (context, url, error) => Container(
-        color: colors.dividerColor,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.image_not_supported_rounded,
+      errorWidget: (context, url, error) => standIn(
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.image_not_supported_rounded,
+              color: colors.textTertiary,
+              size: 48,
+            ),
+            const SizedBox(height: AppTheme.spacing2),
+            Text(
+              'Failed to load image',
+              style: colors.theme.textTheme.bodySmall?.copyWith(
                 color: colors.textTertiary,
-                size: 48,
               ),
-              const SizedBox(height: AppTheme.spacing2),
-              Text(
-                'Failed to load image',
-                style: colors.theme.textTheme.bodySmall?.copyWith(
-                  color: colors.textTertiary,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

@@ -15,9 +15,12 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
   String? topTime;
   int _loadGeneration = 0;
 
+  /// Continues the page [posts] ends with; null until a fresh first page has loaded.
+  FeedCursor? _next;
+
   PostFeed get feed;
 
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) =>
+  Future<PostPage> loadPostsImplementation({FeedCursor? after}) =>
       RedditService().getPosts(feed, sort: sort, topTime: topTime, after: after);
 
   List<RedditPost>? peekCachedPosts() =>
@@ -62,15 +65,17 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
       isLoading = posts.isEmpty;
       loadError = null;
       hasMore = true;
+      _next = null;
     });
 
     try {
-      final newPosts = await loadPostsImplementation();
+      final page = await loadPostsImplementation();
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
-        posts = newPosts;
+        posts = page.posts;
+        _next = page.next;
         isLoading = false;
-        hasMore = newPosts.isNotEmpty;
+        hasMore = page.next != null;
       });
     } catch (_) {
       if (!mounted || generation != _loadGeneration) return;
@@ -82,25 +87,25 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> loadMorePosts() async {
-    if (isLoading || !hasMore || posts.isEmpty) return;
+    final after = _next;
+    if (isLoading || !hasMore || after == null) return;
     final source = posts;
     isLoading = true;
 
     try {
-      final newPosts = await loadPostsImplementation(
-        after: 't3_${source.last.id}',
-      );
+      final page = await loadPostsImplementation(after: after);
       // A reload replaced the list this page continues: drop the page.
       if (!mounted || !identical(posts, source)) return;
 
       final existingIds = source.map((p) => p.id).toSet();
-      final uniqueNewPosts = newPosts
+      final uniqueNewPosts = page.posts
           .where((p) => !existingIds.contains(p.id))
           .toList();
 
       setState(() {
         posts = [...source, ...uniqueNewPosts];
-        hasMore = uniqueNewPosts.isNotEmpty;
+        _next = page.next;
+        hasMore = uniqueNewPosts.isNotEmpty && page.next != null;
         isLoading = false;
       });
     } catch (_) {

@@ -60,6 +60,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _showRemembered();
+    _loadComments();
+  }
+
+  /// Shows the page as last read, if it was, until the reload replaces it.
+  void _showRemembered() {
     final cached = _redditService.peekComments(
       _subreddit,
       _postId,
@@ -67,11 +73,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       permalink: _permalink,
       context: _context,
     );
-    if (cached != null) {
-      _post = cached.post ?? widget.post;
-      _tree = cached.comments;
-    }
-    _loadComments();
+    _post = cached?.post ?? _post;
+    _tree = cached?.comments ?? const [];
   }
 
   @override
@@ -121,7 +124,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   void _changeCommentSort(String sort) {
     setState(() {
       _commentSort = sort;
-      _tree = const [];
+      _showRemembered();
     });
     _loadComments();
   }
@@ -131,7 +134,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       _permalink = _post?.permalink ?? '/comments/$_postId/';
       _context = null;
       _focusedCommentId = null;
-      _tree = const [];
+      _showRemembered();
     });
     _loadComments();
   }

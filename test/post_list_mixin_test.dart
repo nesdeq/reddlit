@@ -19,6 +19,9 @@ RedditPost _post(String id) => RedditPost(
       domain: 'self.s',
     );
 
+/// A page of one post that says where it continues.
+PostPage _page(String id) => PostPage([_post(id)], {'': 't3_$id'});
+
 class _Feed extends StatefulWidget {
   const _Feed();
 
@@ -27,14 +30,14 @@ class _Feed extends StatefulWidget {
 }
 
 class _FeedState extends State<_Feed> with PostListMixin {
-  final replies = <Completer<List<RedditPost>>>[];
-  final afters = <String?>[];
+  final replies = <Completer<PostPage>>[];
+  final afters = <FeedCursor?>[];
 
   @override
   PostFeed get feed => const FrontpageFeed();
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) {
+  Future<PostPage> loadPostsImplementation({FeedCursor? after}) {
     afters.add(after);
     return (replies..add(Completer())).last.future;
   }
@@ -57,11 +60,11 @@ void main() {
     feed.clearAndReload();
     expect(feed.replies, hasLength(2));
 
-    feed.replies[0].complete([_post('stale')]);
+    feed.replies[0].complete(_page('stale'));
     await tester.pump();
     expect(feed.posts, isEmpty);
 
-    feed.replies[1].complete([_post('fresh')]);
+    feed.replies[1].complete(_page('fresh'));
     await tester.pump();
     expect(ids(feed.posts), ['fresh']);
     expect(feed.isLoading, isFalse);
@@ -70,17 +73,17 @@ void main() {
   testWidgets('a reload during load-more drops the stale page', (tester) async {
     final feed = await mount(tester);
     unawaited(feed.loadPosts());
-    feed.replies[0].complete([_post('p1')]);
+    feed.replies[0].complete(_page('p1'));
     await tester.pump();
 
     unawaited(feed.loadMorePosts());
-    expect(feed.afters.last, 't3_p1');
+    expect(feed.afters.last, {'': 't3_p1'});
     feed.clearAndReload();
     expect(feed.replies, hasLength(3));
 
-    feed.replies[1].complete([_post('stale2')]);
+    feed.replies[1].complete(_page('stale2'));
     await tester.pump();
-    feed.replies[2].complete([_post('new1')]);
+    feed.replies[2].complete(_page('new1'));
     await tester.pump();
     expect(ids(feed.posts), ['new1']);
     expect(feed.isLoading, isFalse);
@@ -88,15 +91,39 @@ void main() {
 
   testWidgets('load-more leaves the fetched page list untouched', (tester) async {
     final feed = await mount(tester);
-    final page1 = [_post('p1')];
+    final page1 = _page('p1');
     unawaited(feed.loadPosts());
     feed.replies[0].complete(page1);
     await tester.pump();
 
     unawaited(feed.loadMorePosts());
-    feed.replies[1].complete([_post('p2')]);
+    feed.replies[1].complete(_page('p2'));
     await tester.pump();
     expect(ids(feed.posts), ['p1', 'p2']);
-    expect(ids(page1), ['p1']);
+    expect(ids(page1.posts), ['p1']);
+  });
+
+  testWidgets('each page continues from the cursor the last one gave, until none',
+      (tester) async {
+    final feed = await mount(tester);
+    unawaited(feed.loadPosts());
+    feed.replies[0].complete(PostPage([_post('p1')], {'a': 't3_p1', 'b': 't3_x'}));
+    await tester.pump();
+
+    unawaited(feed.loadMorePosts());
+    expect(feed.afters.last, {'a': 't3_p1', 'b': 't3_x'});
+    feed.replies[1].complete(PostPage([_post('p2')], {'b': 't3_p2'}));
+    await tester.pump();
+    expect(feed.hasMore, isTrue);
+
+    unawaited(feed.loadMorePosts());
+    expect(feed.afters.last, {'b': 't3_p2'});
+    feed.replies[2].complete(PostPage([_post('p3')], null));
+    await tester.pump();
+    expect(ids(feed.posts), ['p1', 'p2', 'p3']);
+    expect(feed.hasMore, isFalse);
+
+    unawaited(feed.loadMorePosts());
+    expect(feed.replies, hasLength(3));
   });
 }

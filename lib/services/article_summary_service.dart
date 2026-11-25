@@ -17,7 +17,6 @@ class SummaryResult {
 class ArticleSummaryService {
   static const String _openAiBase = 'https://api.openai.com/v1';
   static const String _jinaBase = 'https://r.jina.ai/';
-  static const int _maxChars = 12000;
   static const Duration _jinaTimeout = Duration(seconds: 45);
 
   /// The default request timeout of OpenAI's own SDKs.
@@ -57,11 +56,14 @@ class ArticleSummaryService {
       return const SummaryResult.failure('API key not configured.');
     }
 
-    final content = await _fetchMarkdown(url);
+    final (:content, :status) = await _fetchMarkdown(url);
     if (content == null) {
-      return const SummaryResult.failure(
-        "Couldn't fetch the article. The site may be paywalled, rate-limited, "
-        'or unreachable via Jina Reader.',
+      return SummaryResult.failure(
+        status == 429
+            ? 'Jina Reader is rate-limiting this network. Its limit resets '
+                  'every minute: try again shortly.'
+            : "Couldn't fetch the article. The site may be paywalled or "
+                  'unreachable via Jina Reader.',
       );
     }
     if (content.trim().isEmpty) {
@@ -79,10 +81,12 @@ class ArticleSummaryService {
     return SummaryResult.success(summary);
   }
 
-  /// Markdown via Jina Reader; the target URL is one percent-encoded path segment so its `?` and `&` stay its own.
-  Future<String?> _fetchMarkdown(String url) async {
+  /// Markdown via Jina Reader, or the status it failed with (null for a network failure). The target URL is one percent-encoded path segment so its `?` and `&` stay its own.
+  Future<({String? content, int? status})> _fetchMarkdown(String url) async {
     final jinaUri = Uri.parse('$_jinaBase${Uri.encodeComponent(url)}');
 
+    int? status;
+    // One retry, only for what a second request can fix: a 5xx or a dropped connection.
     for (var attempt = 0; attempt < 2; attempt++) {
       try {
         final response = await http
@@ -95,34 +99,26 @@ class ArticleSummaryService {
             )
             .timeout(_jinaTimeout);
 
-        if (response.statusCode == 200) {
-          return _extractContent(response.body);
+        status = response.statusCode;
+        if (status == 200) {
+          return (content: _extractContent(response.body), status: status);
         }
-        // 429 and 5xx are transient: retry once. Other codes are terminal.
-        final transient = response.statusCode == 429 ||
-            (response.statusCode >= 500 && response.statusCode < 600);
-        if (!transient) return null;
+        if (status < 500) break;
       } catch (_) {
-        // Timeout or network error: retry once.
-      }
-      if (attempt == 0) {
-        await Future.delayed(const Duration(seconds: 2));
+        status = null;
       }
     }
-    return null;
+    return (content: null, status: status);
   }
 
-  /// Extract the markdown body from Jina's JSON response, trimming to the
-  /// LLM context budget.
+  /// The whole markdown body of Jina's JSON response; null when the response is not that JSON.
   String? _extractContent(String body) {
     try {
       final decoded = json.decode(body);
       if (decoded is! Map) return null;
       final data = decoded['data'];
       if (data is! Map) return null;
-      final content = data['content']?.toString() ?? '';
-      if (content.length > _maxChars) return content.substring(0, _maxChars);
-      return content;
+      return data['content']?.toString() ?? '';
     } catch (_) {
       return null;
     }

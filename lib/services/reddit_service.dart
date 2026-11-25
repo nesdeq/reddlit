@@ -22,20 +22,33 @@ class RedditService {
 
   static const String _host = 'old.reddit.com';
 
-  Future<List<RedditPost>> getPosts(
+  /// The first page of [feed], or the page [after] continues; throws when no listing could be read.
+  Future<PostPage> getPosts(
     PostFeed feed, {
     String sort = SortConstants.hot,
     String? topTime,
-    String? after,
+    FeedCursor? after,
   }) async {
     final uris = _feedUris(feed, sort: sort, topTime: topTime, after: after);
-    if (feed is! FollowingFeed) {
-      return uris.isEmpty ? const [] : _getListing(uris.single);
+    if (uris.isEmpty) return const PostPage([], null);
+
+    // One failed listing must not empty a feed merged from several.
+    final pages = await Future.wait([
+      for (final uri in uris.values)
+        _getListing(uri).then<List<RedditPost>?>((p) => p, onError: (_) => null),
+    ]);
+    final read = pages.nonNulls.toList();
+    if (read.isEmpty) {
+      throw const RedditServiceException('Network request failed.');
     }
-    final streams = await Future.wait(uris.map(
-      (uri) => _getListing(uri).catchError((_) => const <RedditPost>[]),
-    ));
-    return _mergePosts(streams, sort);
+    final next = <String, String>{
+      for (final (i, listing) in uris.keys.indexed)
+        if (pages[i]?.lastOrNull case final last?) listing: 't3_${last.id}',
+    };
+    return PostPage(
+      read.length == 1 ? read.single : _mergePosts(read, sort),
+      next.isEmpty ? null : next,
+    );
   }
 
   List<RedditPost>? peekPosts(
@@ -44,46 +57,45 @@ class RedditService {
     String? topTime,
   }) {
     final streams = _feedUris(feed, sort: sort, topTime: topTime)
-        .map((uri) => _peek<List<RedditPost>>(CacheBucket.postList, uri))
+        .values
+        .map(_peek<List<RedditPost>>)
         .nonNulls
         .toList();
     if (streams.isEmpty) return null;
-    return feed is FollowingFeed ? _mergePosts(streams, sort) : streams.single;
+    return streams.length == 1 ? streams.single : _mergePosts(streams, sort);
   }
 
-  /// The listing URIs [feed] requests: one per listing, one per followed user.
-  List<Uri> _feedUris(
+  /// The listings [feed] reads, by name: one, or one per followed user. With [after], only the listings it continues.
+  Map<String, Uri> _feedUris(
     PostFeed feed, {
     required String sort,
     String? topTime,
-    String? after,
+    FeedCursor? after,
   }) => switch (feed) {
-    FrontpageFeed() => [
-      _postsUri('', sort: sort, after: after, topTime: topTime),
-    ],
-    SubredditsFeed(:final names) => [
+    FrontpageFeed() => {
+      '': _postsUri('', sort: sort, after: after?[''], topTime: topTime),
+    },
+    SubredditsFeed(:final names) => {
       if (names.isNotEmpty)
-        _postsUri(
+        '': _postsUri(
           '/r/${names.join('+')}',
           sort: sort,
-          after: after,
+          after: after?[''],
           topTime: topTime,
         ),
-    ],
-    UserFeed(:final username) => [_userPostsUri(username, after: after)],
-    FollowingFeed(:final usernames) => [
-      if (after == null)
-        for (final u in usernames)
-          _userPostsUri(u, sort: sort, topTime: topTime),
-    ],
+    },
+    UserFeed(:final username) => {
+      '': _userPostsUri(username, after: after?['']),
+    },
+    FollowingFeed(:final usernames) => {
+      for (final u in usernames)
+        if (after == null || after.containsKey(u))
+          u: _userPostsUri(u, sort: sort, topTime: topTime, after: after?[u]),
+    },
   };
 
   Future<List<RedditPost>> _getListing(Uri uri) =>
-      _withCache<List<RedditPost>>(
-        bucket: CacheBucket.postList,
-        uri: uri,
-        parse: RedditPost.parseListing,
-      );
+      _fetchAndRemember<List<RedditPost>>(uri, RedditPost.parseListing);
 
   List<RedditPost> _mergePosts(List<List<RedditPost>> streams, String sort) {
     final seen = <String>{};
@@ -107,16 +119,15 @@ class RedditService {
     String sort = SortConstants.confidence,
     String? permalink,
     String? context,
-  }) => _withCache<CommentsPage>(
-    bucket: CacheBucket.comments,
-    uri: _commentsUri(
+  }) => _fetchAndRemember<CommentsPage>(
+    _commentsUri(
       subreddit,
       postId,
       sort: sort,
       permalink: permalink,
       context: context,
     ),
-    parse: (doc) => CommentsPage.fromDocument(doc, subreddit, postId),
+    (doc) => CommentsPage.fromDocument(doc, subreddit, postId),
   );
 
   /// Re-fetch a placeholder's thread (the morechildren JSON API is blocked); null when the fetch fails.
@@ -136,15 +147,15 @@ class RedditService {
     return resolved is ShareLink ? null : resolved;
   }
 
+  /// The user's profile; on failure the last one read, or an empty one.
   Future<RedditUser> getUserInfo(String username) async {
     try {
-      return await _withCache<RedditUser>(
-        bucket: CacheBucket.userInfo,
-        uri: _userInfoUri(username),
-        parse: (doc) => RedditUser.fromUserPage(doc, username),
+      return await _fetchAndRemember<RedditUser>(
+        _userInfoUri(username),
+        (doc) => RedditUser.fromUserPage(doc, username),
       );
     } on RedditServiceException {
-      return RedditUser.empty(username);
+      return peekUserInfo(username) ?? RedditUser.empty(username);
     }
   }
 
@@ -158,15 +169,11 @@ class RedditService {
       'q': query,
       'type': 'communities',
     });
-    return _withCache<List<Subreddit>>(
-      bucket: CacheBucket.subredditSearch,
-      uri: uri,
-      parse: Subreddit.parseSearchResults,
-    );
+    return _fetch<List<Subreddit>>(uri, Subreddit.parseSearchResults);
   }
 
   RedditUser? peekUserInfo(String username) =>
-      _peek<RedditUser>(CacheBucket.userInfo, _userInfoUri(username));
+      _peek<RedditUser>(_userInfoUri(username));
 
   CommentsPage? peekComments(
     String subreddit,
@@ -175,7 +182,6 @@ class RedditService {
     String? permalink,
     String? context,
   }) => _peek<CommentsPage>(
-    CacheBucket.comments,
     _commentsUri(
       subreddit,
       postId,
@@ -185,8 +191,7 @@ class RedditService {
     ),
   );
 
-  T? _peek<T>(CacheBucket bucket, Uri uri) =>
-      RedditCache.instance.lookup<T>(bucket, uri.toString());
+  T? _peek<T>(Uri uri) => RedditCache.instance.lookup<T>(uri.toString());
 
   Uri _postsUri(
     String path, {
@@ -251,20 +256,22 @@ class RedditService {
     );
   }
 
-  Future<T> _withCache<T>({
-    required CacheBucket bucket,
-    required Uri uri,
-    required T Function(Document doc) parse,
-  }) async {
-    final key = uri.toString();
-    final cached = RedditCache.instance.lookup<T>(bucket, key);
-    if (cached != null) return cached;
+  /// [_fetch], remembered so a revisit can show the page at once while it reloads.
+  Future<T> _fetchAndRemember<T extends Object>(
+    Uri uri,
+    T Function(Document doc) parse,
+  ) async {
+    final fresh = await _fetch<T>(uri, parse);
+    RedditCache.instance.put(uri.toString(), fresh);
+    return fresh;
+  }
 
+  /// The parsed page at [uri]; throws when the request or the parse fails.
+  Future<T> _fetch<T>(Uri uri, T Function(Document doc) parse) async {
     final fresh = await _fetchAndParse<T>(uri, parse);
     if (fresh == null) {
       throw const RedditServiceException('Network request failed.');
     }
-    RedditCache.instance.put(key, fresh as Object);
     return fresh;
   }
 

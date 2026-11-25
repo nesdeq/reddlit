@@ -248,8 +248,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                       style: colors.theme.textTheme.bodySmall?.copyWith(
                         color: colors.textTertiary,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ],

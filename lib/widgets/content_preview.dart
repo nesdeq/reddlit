@@ -8,11 +8,10 @@ import '../utils/url_utils.dart';
 import '../constants/app_constants.dart';
 import 'reddit_video_player.dart';
 import 'youtube_video_player.dart';
-import 'gallery_viewer.dart';
 import 'content_widgets.dart';
 import 'loading_widgets.dart';
 
-/// A post's media: compact in feed cards, flexible height in the detail view.
+/// A post's media: a fixed-ratio preview in feed cards, the whole image in the detail view.
 class ContentPreview extends StatelessWidget {
   final RedditPost post;
   final bool isCompact;
@@ -23,9 +22,12 @@ class ContentPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (post.contentType) {
       case PostContentType.gallery:
-        return GalleryViewer(
-          images: post.galleryImages,
-          constrainAspectRatio: isCompact,
+        // Only a post page lists gallery images, so every one is shown whole, one under the other.
+        return Column(
+          spacing: AppTheme.spacing2,
+          children: [
+            for (final url in post.galleryImages) _wholeImage(context, url),
+          ],
         );
 
       case PostContentType.redditVideo:
@@ -38,11 +40,7 @@ class ContentPreview extends StatelessWidget {
         return _videoPoster(context);
 
       case PostContentType.youtubeVideo:
-        final youtubeId = post.youtubeId;
-        if (youtubeId != null && youtubeId.length >= 10) {
-          return YoutubeVideoPlayer(youtubeId: youtubeId);
-        }
-        return const SizedBox.shrink();
+        return YoutubeVideoPlayer(youtubeId: post.youtubeId!);
 
       case PostContentType.image:
         return _buildImage(context);
@@ -86,19 +84,18 @@ class ContentPreview extends StatelessWidget {
     }
 
     if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
-    return ConstrainedBox(
-      constraints: const BoxConstraints(
-        minHeight: AppConstants.detailMediaMinHeight,
-        maxHeight: AppConstants.detailMediaMaxHeight,
-      ),
-      child: ContentWidgets.cachedImage(
-        context: context,
-        imageUrl: post.url!,
-        fit: BoxFit.cover,
-        borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-      ),
-    );
+    return _wholeImage(context, post.url!);
   }
+
+  /// The image at full width and its own height, however tall.
+  Widget _wholeImage(BuildContext context, String url) => SizedBox(
+    width: double.infinity,
+    child: ContentWidgets.cachedImage(
+      context: context,
+      imageUrl: url,
+      borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
+    ),
+  );
 
   Widget _buildVideo(BuildContext context) {
     if (isCompact) {

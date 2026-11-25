@@ -250,6 +250,30 @@ void main() {
     });
   });
 
+  group('UrlUtils.extractYoutubeId', () {
+    test('reads the id from every address form', () {
+      for (final url in [
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'https://www.youtube.com/watch?feature=share&v=dQw4w9WgXcQ&t=42',
+        'https://youtu.be/dQw4w9WgXcQ?si=abc',
+        'https://www.youtube.com/embed/dQw4w9WgXcQ',
+        'https://www.youtube.com/v/dQw4w9WgXcQ',
+        'https://www.youtube.com/shorts/dQw4w9WgXcQ/',
+      ]) {
+        expect(UrlUtils.extractYoutubeId(url), 'dQw4w9WgXcQ', reason: url);
+      }
+    });
+    test('an id of the wrong length is no id', () {
+      expect(UrlUtils.extractYoutubeId('https://youtu.be/tooShort'), isNull);
+      expect(
+        UrlUtils.extractYoutubeId('https://youtu.be/dQw4w9WgXcQtooLong'),
+        isNull,
+      );
+      expect(UrlUtils.extractYoutubeId('https://www.youtube.com/@channel'),
+          isNull);
+    });
+  });
+
   group('UrlUtils.canSummarize', () {
     test('an external article can be summarized', () {
       expect(UrlUtils.canSummarize('https://www.zeit.de/politik/x'), isTrue);

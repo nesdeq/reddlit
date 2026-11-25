@@ -6,7 +6,6 @@ import '../utils/format_utils.dart';
 import '../utils/url_utils.dart';
 import 'content_widgets.dart';
 import 'content_preview.dart';
-import 'comment_content.dart';
 import 'article_summary_widget.dart';
 
 class PostCard extends StatelessWidget {
@@ -18,16 +17,6 @@ class PostCard extends StatelessWidget {
     required this.post,
     required this.onTap,
   });
-
-  static final _whitespacePattern = RegExp(r'\s+');
-
-  static String _truncateToWords(String text, int wordLimit) {
-    final words = text.trim().split(_whitespacePattern);
-    if (words.length <= wordLimit) {
-      return text;
-    }
-    return '${words.take(wordLimit).join(' ')}...';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,23 +66,9 @@ class PostCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppTheme.spacing2),
-              Text(
-                post.title,
-                style: colors.theme.textTheme.titleLarge,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Text(post.title, style: colors.theme.textTheme.titleLarge),
               const SizedBox(height: AppTheme.spacing3),
               ContentPreview(post: post),
-              if (post.selftext != null && post.selftext!.isNotEmpty) ...[
-                const SizedBox(height: AppTheme.spacing2),
-                CommentContent(
-                  content: _truncateToWords(post.selftext!, 50),
-                  textStyle: colors.theme.textTheme.bodyMedium?.copyWith(
-                    color: colors.textSecondary,
-                  ),
-                ),
-              ],
               const SizedBox(height: AppTheme.spacing3),
               ContentWidgets.engagementMetrics(
                 context: context,
