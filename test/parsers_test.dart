@@ -9,6 +9,7 @@ import 'package:reddlit/models/subreddit.dart';
 import 'package:reddlit/services/reddit_service.dart';
 import 'package:reddlit/services/request_pipeline.dart';
 import 'package:reddlit/utils/html_to_markdown.dart';
+import 'package:reddlit/utils/reddit_link.dart';
 import 'package:reddlit/utils/url_utils.dart';
 
 Element _thing(String html) => html_parser.parse(html).querySelector('.thing')!;
@@ -25,6 +26,56 @@ void main() {
           'data-subreddit="AskReddit" data-score="1" data-comments-count="1" '
           'data-timestamp="1700000000000"><a class="title">Q?</a></div>');
       expect(RedditPost.fromThing(t).contentType, PostContentType.text);
+    });
+
+    group('posts that link to reddit itself', () {
+      RedditPost post({required String domain, required String url, String gallery = ''}) =>
+          RedditPost.fromThing(_thing(
+              '<div class="thing" data-fullname="t3_self" data-domain="$domain" '
+              'data-url="$url" $gallery data-author="u" data-subreddit="bestof" '
+              'data-score="1" data-comments-count="1" data-timestamp="1700000000000">'
+              '<a class="title">T</a></div>'));
+
+      test('a cited comment thread is a reddit link, not empty text', () {
+        for (final (domain, url) in [
+          ('reddit.com', 'https://www.reddit.com/r/AskHistorians/comments/abc/t/def/?context=3'),
+          ('old.reddit.com', '/r/AskHistorians/comments/abc/t/def/'),
+          ('np.reddit.com', 'https://np.reddit.com/r/AskHistorians/comments/abc/t/'),
+        ]) {
+          final p = post(domain: domain, url: url);
+          expect(p.contentType, PostContentType.redditLink, reason: url);
+          expect((p.redditLink! as ThreadLink).postId, 'abc');
+        }
+      });
+
+      test('a crossposted self post links to the original', () {
+        final p = post(domain: 'self.other', url: '/r/other/comments/orig/t/');
+        expect(p.contentType, PostContentType.redditLink);
+      });
+
+      test('a link to a subreddit or user is a reddit link', () {
+        expect(post(domain: 'reddit.com', url: 'https://www.reddit.com/r/dartlang/').contentType,
+            PostContentType.redditLink);
+      });
+
+      test('its own permalink is not a cite', () {
+        final p = post(domain: 'self.bestof', url: '/r/bestof/comments/self/t/');
+        expect(p.redditLink, isNull);
+        expect(p.contentType, PostContentType.text);
+      });
+
+      test('a gallery without a cover stays text', () {
+        final p = post(
+            domain: 'old.reddit.com',
+            url: 'https://www.reddit.com/gallery/other',
+            gallery: 'data-is-gallery="true"');
+        expect(p.contentType, PostContentType.text);
+      });
+
+      test('other reddit pages show as an external link', () {
+        expect(post(domain: 'reddit.com', url: 'https://www.reddit.com/wiki/index').contentType,
+            PostContentType.externalLink);
+      });
     });
 
     test('v.redd.it video: hls comes from a descendant [data-hls-url] node', () {
@@ -167,26 +218,54 @@ void main() {
     });
 
     test('pathologically nested markup degrades, does not overflow the stack', () {
-      String nest(String open, String close, int n) {
-        final b = StringBuffer();
-        for (var i = 0; i < n; i++) {
-          b.write(open);
-        }
-        b.write('x');
-        for (var i = 0; i < n; i++) {
-          b.write(close);
-        }
-        return b.toString();
+      const depth = 40000;
+      // Block recursion. The chain is built directly: package:html parses
+      // nested blockquotes quadratically (about 30 s at this depth).
+      final root = Element.tag('div');
+      var parent = root;
+      for (var i = 0; i < depth; i++) {
+        final child = Element.tag('blockquote');
+        parent.append(child);
+        parent = child;
       }
+      parent.append(Text('x'));
+      expect(() => HtmlToMarkdown.convert(root), returnsNormally);
 
-      // The two confirmed overflow mechanisms: block-recursion (blockquote/div)
-      // and el.text over a deep subtree (the image-link alt).
-      for (final html in [
-        nest('<blockquote>', '</blockquote>', 40000),
-        '<a href="x.jpg">${nest('<span>', '</span>', 40000)}</a>',
-      ]) {
-        expect(() => _toMd(html), returnsNormally);
-      }
+      // el.text over a deep subtree (the image-link alt).
+      final spans = '${'<span>' * depth}x${'</span>' * depth}';
+      expect(() => _toMd('<a href="x.jpg">$spans</a>'), returnsNormally);
+    });
+  });
+
+  group('UrlUtils.fromAttribute', () {
+    test('decodes &amp; and upgrades protocol-relative urls', () {
+      expect(UrlUtils.fromAttribute('//preview.redd.it/a.jpg?w=1&amp;s=2'),
+          'https://preview.redd.it/a.jpg?w=1&s=2');
+      expect(UrlUtils.fromAttribute('https://i.redd.it/a.jpg'),
+          'https://i.redd.it/a.jpg');
+    });
+    test('missing or empty is null', () {
+      expect(UrlUtils.fromAttribute(null), isNull);
+      expect(UrlUtils.fromAttribute(''), isNull);
+    });
+  });
+
+  group('UrlUtils.canSummarize', () {
+    test('an external article can be summarized', () {
+      expect(UrlUtils.canSummarize('https://www.zeit.de/politik/x'), isTrue);
+    });
+    test('a self post, whose url is its own relative permalink, cannot', () {
+      expect(UrlUtils.canSummarize('/r/Finanzen/comments/1usera3/title/'),
+          isFalse);
+      expect(UrlUtils.canSummarize('/user/spez/comments/1u7hraf/title/'),
+          isFalse);
+    });
+    test('reddit pages, media and nothing cannot', () {
+      expect(UrlUtils.canSummarize('https://www.reddit.com/r/x/comments/y/'),
+          isFalse);
+      expect(UrlUtils.canSummarize('https://i.redd.it/x.jpg'), isFalse);
+      expect(UrlUtils.canSummarize(null), isFalse);
+      expect(UrlUtils.canSummarize(''), isFalse);
     });
   });
 

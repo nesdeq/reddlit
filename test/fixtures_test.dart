@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart';
 
+import 'package:reddlit/models/comments_page.dart';
 import 'package:reddlit/models/reddit_post.dart';
 import 'package:reddlit/models/reddit_comment.dart';
 import 'package:reddlit/models/reddit_user.dart';
@@ -13,23 +14,13 @@ import 'package:reddlit/utils/html_to_markdown.dart';
 Document _doc(String name) =>
     html_parser.parse(File('test/fixtures/$name').readAsStringSync());
 
-/// Mirrors RedditService._parsePosts: the `#siteTable` link things, minus ads.
-List<RedditPost> _posts(Document doc) => doc
-    .getElementById('siteTable')!
-    .children
-    .where((e) => e.classes.contains('thing'))
-    .where((e) => (e.attributes['data-fullname'] ?? '').startsWith('t3_'))
-    .where((e) => e.attributes['data-promoted'] != 'true')
-    .map(RedditPost.fromThing)
-    .toList();
-
 List<RedditComment> _flatten(List<RedditComment> comments) => [
       for (final c in comments) ...[c, ..._flatten(c.replies)],
     ];
 
 void main() {
   group('fixture listing-posts.html', () {
-    final posts = _posts(_doc('listing-posts.html'));
+    final posts = RedditPost.parseListing(_doc('listing-posts.html'));
 
     test('parses all three link things', () => expect(posts, hasLength(3)));
 
@@ -55,10 +46,12 @@ void main() {
   });
 
   group('fixture post-detail.html', () {
-    final posts = _posts(_doc('post-detail.html'));
+    final doc = _doc('post-detail.html');
+    final posts = RedditPost.parseListing(doc);
 
     test('self-text post carries its expando body', () {
-      final p = posts.firstWhere((p) => p.id == '1us9n0o');
+      final p = CommentsPage.fromDocument(doc, 'AmItheAsshole', '1us9n0o').post!;
+      expect(p.id, '1us9n0o');
       expect(p.contentType, PostContentType.text);
       expect(p.selftext, contains('beloved cat'));
       expect(p.score, 1632);
@@ -86,7 +79,7 @@ void main() {
     });
 
     test('submitted listing parses the user post', () {
-      final posts = _posts(doc);
+      final posts = RedditPost.parseListing(doc);
       expect(posts, hasLength(1));
       expect(posts.first.author, 'spez');
       expect(posts.first.score, 798);
@@ -95,10 +88,9 @@ void main() {
   });
 
   group('fixture comments.html', () {
-    final table =
-        _doc('comments.html').querySelector('.commentarea .sitetable')!;
-    final roots = RedditComment.parseThings(
-        table, 0, '/r/AskReddit/comments/1us7xml/x/', 't3_1us7xml');
+    final roots =
+        CommentsPage.fromDocument(_doc('comments.html'), 'AskReddit', '1us7xml')
+            .comments;
     final all = _flatten(roots);
 
     test('top comment: author, score, body', () {
@@ -114,6 +106,17 @@ void main() {
       expect(bexlyp.score, 154);
     });
 
+    test('every node names its real parent', () {
+      for (final root in roots) {
+        expect(root.parentId, 't3_1us7xml');
+      }
+      for (final c in all) {
+        for (final reply in c.replies) {
+          expect(reply.parentId, 't1_${c.id}');
+        }
+      }
+    });
+
     test('load-more placeholders carry the real reply count and a permalink', () {
       final placeholders = all.where((c) => c.isMorePlaceholder).toList();
       expect(placeholders, isNotEmpty);
@@ -126,7 +129,7 @@ void main() {
     final doc = _doc('sorts-pagination.html');
 
     test('external-link post reads data-score even when the score is hidden', () {
-      final posts = _posts(doc);
+      final posts = RedditPost.parseListing(doc);
       expect(posts, hasLength(2));
       expect(posts[0].contentType, PostContentType.externalLink);
       expect(posts[0].domain, 'zeit.de');
@@ -134,12 +137,11 @@ void main() {
       expect(posts[0].numComments, 353);
     });
 
-    test('stickied score-hidden comment resolves to score 0', () {
-      final table = doc.querySelector('.commentarea .sitetable')!;
-      final cs = RedditComment.parseThings(
-          table, 0, '/r/de/comments/1usin2h/x/', 't3_1usin2h');
-      expect(cs.first.author, 'ClausKlebot');
-      expect(cs.first.score, 0);
+    test('comments page: post from #siteTable, stickied score-hidden comment is 0', () {
+      final page = CommentsPage.fromDocument(doc, 'de', '1usin2h');
+      expect(page.post!.domain, 'zeit.de');
+      expect(page.comments.first.author, 'ClausKlebot');
+      expect(page.comments.first.score, 0);
     });
   });
 
@@ -201,11 +203,7 @@ void main() {
   });
 
   group('fixture community-search.html', () {
-    final subs = _doc('community-search.html')
-        .querySelectorAll('[data-testid="search-community"]')
-        .map(Subreddit.fromCommunityCard)
-        .toList()
-      ..sort((a, b) => b.weeklyVisitors.compareTo(a.weeklyVisitors));
+    final subs = Subreddit.parseSearchResults(_doc('community-search.html'));
 
     test('parses all three community cards', () => expect(subs, hasLength(3)));
 

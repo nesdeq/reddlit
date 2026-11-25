@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 
-/// Loading states, empty states, and video player states
+/// Loading, empty, error, and video player states.
 class LoadingWidgets {
-  const LoadingWidgets._(); // Private constructor to prevent instantiation
+  const LoadingWidgets._();
+
   /// Standard loading indicator with accent color
   static Widget loadingIndicator(BuildContext context) {
     final colors = ThemeHelper(context);
@@ -34,6 +35,47 @@ class LoadingWidgets {
           style: colors.theme.textTheme.bodyMedium?.copyWith(
             color: colors.textSecondary,
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Failure message with a retry action.
+  static Widget errorState(
+    BuildContext context,
+    String message,
+    VoidCallback onRetry,
+  ) {
+    final colors = ThemeHelper(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppTheme.spacing6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_rounded,
+              color: colors.textTertiary,
+              size: 48,
+            ),
+            const SizedBox(height: AppTheme.spacing3),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: colors.theme.textTheme.bodyMedium?.copyWith(
+                color: colors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: AppTheme.spacing4),
+            TextButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+              style: TextButton.styleFrom(
+                foregroundColor: colors.accentColor,
+              ),
+            ),
+          ],
         ),
       ),
     );

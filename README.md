@@ -1,6 +1,6 @@
 # Reddlit
 
-A minimalist Reddit reader for people who just want to lurk. Started as a weekend build with Claude Code, then kept limping along as Reddit found new ways to make reading a website hard. Share, fork, use.
+A minimalist Reddit reader for people who just want to lurk. Started as a weekend build, then kept limping along as Reddit found new ways to make reading a website hard. Share, fork, use.
 
 No feed algorithm, no "for you," no app that's 90% chrome, ads, and "open in app" nags wrapped around 10% content. Just posts, comments, and the occasional cat.
 
@@ -42,7 +42,7 @@ Grab the latest APK from [Releases](../../releases).
 
 ## Build from Source
 
-Requires Flutter (Dart SDK 3.9.2+).
+Requires Flutter 3.50.1+ (pinned in `.fvmrc`) and JDK 17+.
 
 ```bash
 git clone https://github.com/nesdeq/reddlit.git
@@ -72,3 +72,5 @@ Article text is fetched through Jina Reader and summarized by OpenAI. Your key i
 ## License
 
 MIT. It's a Reddit reader, not a moonshot.
+
+The bundled fonts (Source Sans 3, Source Serif 4) are under the SIL Open Font License 1.1: see `assets/fonts/`.

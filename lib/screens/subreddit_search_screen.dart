@@ -1,13 +1,13 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import '../models/subreddit.dart';
 import '../services/auth_service.dart';
 import '../services/reddit_service.dart';
+import '../services/settings_provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
-import '../theme/theme_provider.dart';
 import '../utils/format_utils.dart';
 import '../utils/haptics.dart';
 import '../utils/navigation_helper.dart';
@@ -27,6 +27,8 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
   List<Subreddit> _results = [];
   bool _isLoading = false;
   bool _hasSearched = false;
+  bool _searchFailed = false;
+  int _searchToken = 0;
   Timer? _debounceTimer;
 
   @override
@@ -38,28 +40,39 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
 
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty) return;
+    final token = ++_searchToken;
 
     setState(() {
       _isLoading = true;
       _hasSearched = true;
+      _searchFailed = false;
     });
 
     try {
       final results = await _redditService.searchSubreddits(query);
-
-      if (mounted) {
-        setState(() {
-          _results = results;
-          _isLoading = false;
-        });
-      }
+      if (!mounted || token != _searchToken) return;
+      setState(() {
+        _results = results;
+        _isLoading = false;
+      });
     } catch (_) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      if (!mounted || token != _searchToken) return;
+      setState(() {
+        _isLoading = false;
+        _searchFailed = true;
+      });
     }
+  }
+
+  void _resetSearch() {
+    _debounceTimer?.cancel();
+    _searchToken++;
+    setState(() {
+      _results = [];
+      _isLoading = false;
+      _hasSearched = false;
+      _searchFailed = false;
+    });
   }
 
   @override
@@ -70,7 +83,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
       appBar: AppBar(title: const Text('Search Subreddits')),
       body: Column(
         children: [
-          // Search input
           Container(
             color: colors.surfaceColor,
             padding: const EdgeInsets.all(AppTheme.spacing4),
@@ -85,11 +97,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                         icon: Icon(Icons.clear_rounded, color: colors.textSecondary),
                         onPressed: () {
                           _searchController.clear();
-                          _debounceTimer?.cancel();
-                          setState(() {
-                            _results = [];
-                            _hasSearched = false;
-                          });
+                          _resetSearch();
                         },
                       )
                     : null,
@@ -113,17 +121,12 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                     () => _performSearch(value),
                   );
                 } else {
-                  setState(() {
-                    _results = [];
-                    _hasSearched = false;
-                  });
+                  _resetSearch();
                 }
               },
               onSubmitted: _performSearch,
             ),
           ),
-
-          // Results
           Expanded(
             child: _buildResults(colors),
           ),
@@ -141,6 +144,14 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
       return LoadingWidgets.emptyState(
         context,
         'Type to search subreddits by name',
+      );
+    }
+
+    if (_searchFailed) {
+      return LoadingWidgets.errorState(
+        context,
+        'Failed to search subreddits.',
+        () => _performSearch(_searchController.text),
       );
     }
 
@@ -162,7 +173,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
   }
 
   Widget _buildSubredditTile(Subreddit subreddit, ThemeHelper colors) {
-    final isFavorite = context.watch<ThemeProvider>().isFavorite(
+    final isFavorite = context.watch<SettingsProvider>().isFavorite(
       subreddit.displayName,
     );
 
@@ -177,7 +188,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
         padding: const EdgeInsets.all(AppTheme.spacing4),
         child: Row(
           children: [
-            // Subreddit icon or placeholder
             Container(
               width: 48,
               height: 48,
@@ -200,8 +210,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
             ),
 
             const SizedBox(width: AppTheme.spacing3),
-
-            // Subreddit info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,8 +240,6 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
                         ),
                       ],
                     ),
-
-                  // Description (if available)
                   if (subreddit.description != null &&
                       subreddit.description!.isNotEmpty) ...[
                     const SizedBox(height: AppTheme.spacing1),
@@ -258,7 +264,7 @@ class _SubredditSearchScreenState extends State<SubredditSearchScreen> {
               tooltip: isFavorite ? 'Unfavorite' : 'Favorite',
               onPressed: () {
                 Haptics.lightImpact();
-                context.read<ThemeProvider>().toggleFavorite(
+                context.read<SettingsProvider>().toggleFavorite(
                   subreddit.displayName,
                 );
               },

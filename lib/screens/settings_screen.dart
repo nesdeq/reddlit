@@ -1,14 +1,14 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
-import '../theme/theme_provider.dart';
 import '../widgets/loading_widgets.dart';
 import '../widgets/modal_widgets.dart';
 import '../widgets/login.dart';
 import '../widgets/login_sheet.dart';
 import '../services/auth_service.dart';
+import '../services/settings_provider.dart';
 import '../utils/haptics.dart';
 import '../constants/app_constants.dart';
 
@@ -26,26 +26,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     'Dutch', 'Swedish', 'Polish', 'Turkish',
   ];
 
-  static const _themeOptions = [
-    ('system', 'System'),
-    ('light', 'Light'),
-    ('dark', 'Dark'),
-  ];
-
   static String _themeLabel(ThemeMode mode) => switch (mode) {
     ThemeMode.light => 'Light',
     ThemeMode.dark => 'Dark',
     ThemeMode.system => 'System',
   };
 
-  static ThemeMode _parseTheme(String value) => switch (value) {
-    'light' => ThemeMode.light,
-    'dark' => ThemeMode.dark,
-    _ => ThemeMode.system,
-  };
-
   void _showLanguageSelector() {
-    final provider = context.read<ThemeProvider>();
+    final provider = context.read<SettingsProvider>();
     ModalWidgets.showTitledSelection(
       context: context,
       title: 'Summary Language',
@@ -56,7 +44,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showDefaultSubredditDialog() {
-    final provider = context.read<ThemeProvider>();
+    final provider = context.read<SettingsProvider>();
     ModalWidgets.showDefaultSubredditModal(
       context: context,
       currentDefault: provider.defaultSubreddit,
@@ -65,13 +53,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showThemeSelector() {
-    final provider = context.read<ThemeProvider>();
+    final provider = context.read<SettingsProvider>();
     ModalWidgets.showTitledSelection(
       context: context,
       title: 'Theme',
-      options: _themeOptions,
-      isSelected: (v) => _parseTheme(v) == provider.themeMode,
-      onSelected: (v) => provider.setThemeMode(_parseTheme(v)),
+      options: [
+        for (final mode in ThemeMode.values) (mode.name, _themeLabel(mode)),
+      ],
+      isSelected: (name) => name == provider.themeMode.name,
+      onSelected: (name) => provider.setThemeMode(ThemeMode.values.byName(name)),
     );
   }
 
@@ -92,7 +82,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final provider = context.watch<ThemeProvider>();
+    final provider = context.watch<SettingsProvider>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -233,7 +223,7 @@ class _FavoritesManagerBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
+    return Consumer<SettingsProvider>(
       builder: (context, provider, _) {
         final subs = provider.favoriteSubreddits.toList()..sort();
         final users = provider.favoriteUsers.toList()..sort();
@@ -339,8 +329,6 @@ class _AboutCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          const SizedBox(height: AppTheme.spacing1),
-          Text('Version 1.0.0', style: colors.theme.textTheme.bodySmall),
           const SizedBox(height: AppTheme.spacing2),
           Text(
             'A minimalist Reddit reader with AI-powered article summarization',
@@ -361,7 +349,7 @@ class _AccountCard extends StatelessWidget {
     final error = await AuthService.instance.validate();
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(error ?? 'Session works — you are logged in.')),
+      SnackBar(content: Text(error ?? 'Session works: you are logged in.')),
     );
   }
 
@@ -424,7 +412,9 @@ class _AccountCard extends StatelessWidget {
                           : Icons.help_outline_rounded),
                   color: !signedIn
                       ? colors.textSecondary
-                      : (auth.validated ? Colors.green : Colors.orange),
+                      : (auth.validated
+                          ? colors.successColor
+                          : colors.warningColor),
                 ),
                 title: Text(!signedIn
                     ? 'Not signed in'
@@ -489,7 +479,7 @@ class _AccountCard extends StatelessWidget {
                 Divider(height: 1, color: colors.dividerColor),
                 ListTile(
                   title: Text('Log out',
-                      style: TextStyle(color: colors.theme.colorScheme.error)),
+                      style: TextStyle(color: colors.errorColor)),
                   onTap: () => AuthService.instance.logout(),
                 ),
               ],
@@ -517,7 +507,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
   void initState() {
     super.initState();
     _controller = TextEditingController(
-      text: context.read<ThemeProvider>().openAiApiKey,
+      text: context.read<SettingsProvider>().openAiApiKey,
     );
   }
 
@@ -529,11 +519,12 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
 
   Future<void> _save() async {
     final key = _controller.text.trim();
-    final provider = context.read<ThemeProvider>();
+    final provider = context.read<SettingsProvider>();
+    final colors = ThemeHelper(context);
     final storageError = await provider.setOpenAiApiKey(key);
 
     if (storageError != null) {
-      _snack(storageError, background: Colors.red, seconds: 5);
+      _snack(storageError, background: colors.errorColor, seconds: 5);
       return;
     }
 
@@ -548,11 +539,11 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
     setState(() => _validating = false);
 
     if (error == null) {
-      _snack('API key saved and validated', background: Colors.green);
+      _snack('API key saved and validated', background: colors.successColor);
     } else {
       _snack(
         'Invalid API key: $error',
-        background: Colors.red,
+        background: colors.errorColor,
         seconds: 4,
       );
     }
@@ -578,7 +569,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final provider = context.watch<ThemeProvider>();
+    final provider = context.watch<SettingsProvider>();
 
     return Container(
       color: colors.surfaceColor,
@@ -630,7 +621,7 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
               onPressed: _validating ? null : _save,
               style: ElevatedButton.styleFrom(
                 backgroundColor: colors.accentColor,
-                foregroundColor: Colors.white,
+                foregroundColor: colors.onAccentColor,
                 padding: const EdgeInsets.symmetric(
                   vertical: AppTheme.spacing3,
                 ),
@@ -639,12 +630,12 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                 ),
               ),
               child: _validating
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: Colors.white,
+                        color: colors.accentColor,
                       ),
                     )
                   : const Text('Save & Validate API Key'),
@@ -660,8 +651,8 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                       : Icons.error_outline_rounded,
                   size: 16,
                   color: provider.isApiKeyValid
-                      ? Colors.green
-                      : Colors.orange,
+                      ? colors.successColor
+                      : colors.warningColor,
                 ),
                 const SizedBox(width: AppTheme.spacing1),
                 Text(
@@ -670,8 +661,8 @@ class _ApiKeyCardState extends State<_ApiKeyCard> {
                       : 'API key not validated',
                   style: colors.theme.textTheme.bodySmall?.copyWith(
                     color: provider.isApiKeyValid
-                        ? Colors.green
-                        : Colors.orange,
+                        ? colors.successColor
+                        : colors.warningColor,
                   ),
                 ),
               ],

@@ -36,6 +36,5 @@ android/**/GeneratedPluginRegistrant.java
 **/key.properties
 **/google-services.json
 
-# Claude Code
-.claude/
-continue.claude
+# FVM
+.fvm/

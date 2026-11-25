@@ -1,13 +1,10 @@
 import 'package:flutter/services.dart';
 
-/// Thin wrapper around HapticFeedback that honors the user's setting.
-/// [enabled] is mirrored from ThemeProvider so call sites don't need a
-/// BuildContext — haptic decisions happen on every tap.
+/// HapticFeedback gated by the user's setting, mirrored from SettingsProvider so taps need no BuildContext.
 class Haptics {
   Haptics._();
 
-  /// Current user preference. Defaults to true; updated by ThemeProvider once
-  /// preferences load.
+  /// Current user preference; SettingsProvider updates it once preferences load.
   static bool enabled = true;
 
   /// Discrete selection tick (picking from a list, collapsing a comment).

@@ -13,14 +13,35 @@ class SummaryResult {
   bool get isSuccess => summary != null;
 }
 
-/// Article summarizer: Jina Reader fetches the content, OpenAI writes the
-/// summary. We never scrape directly — Jina is the one source of truth.
+/// The app's OpenAI client: article summaries (text via Jina Reader) and API key checks.
 class ArticleSummaryService {
-  static const String _openAiUrl = 'https://api.openai.com/v1/chat/completions';
+  static const String _openAiBase = 'https://api.openai.com/v1';
   static const String _jinaBase = 'https://r.jina.ai/';
   static const int _maxChars = 12000;
   static const Duration _jinaTimeout = Duration(seconds: 45);
   static const Duration _openAiTimeout = Duration(seconds: 30);
+  static const Duration _keyCheckTimeout = Duration(seconds: 10);
+
+  /// OpenAI's verdict on [key]; `valid` is null when the check was inconclusive.
+  Future<({bool? valid, String? error})> checkApiKey(String key) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_openAiBase/models'),
+        headers: {'Authorization': 'Bearer $key'},
+      ).timeout(_keyCheckTimeout);
+      if (response.statusCode == 200) return (valid: true, error: null);
+      if (response.statusCode == 401) {
+        return (valid: false, error: 'Invalid API key');
+      }
+      final body = json.decode(response.body);
+      return (
+        valid: null,
+        error: (body['error']?['message'] ?? 'Unknown error') as String?,
+      );
+    } catch (e) {
+      return (valid: null, error: 'Connection error: $e');
+    }
+  }
 
   Future<SummaryResult> summarizeArticle({
     required String url,
@@ -40,7 +61,7 @@ class ArticleSummaryService {
     }
     if (content.trim().isEmpty) {
       return const SummaryResult.failure(
-        'Jina returned no content — the article is likely paywalled or empty.',
+        'Jina returned no content: the article is likely paywalled or empty.',
       );
     }
 
@@ -53,11 +74,7 @@ class ArticleSummaryService {
     return SummaryResult.success(summary);
   }
 
-  /// Fetch markdown content via Jina Reader.
-  ///
-  /// The target URL is percent-encoded as a single path segment so its own
-  /// `?` and `&` don't get swallowed by Dart's Uri parser as Jina's query —
-  /// that bug silently broke any article whose URL carried query parameters.
+  /// Markdown via Jina Reader; the target URL is one percent-encoded path segment so its `?` and `&` stay its own.
   Future<String?> _fetchMarkdown(String url) async {
     final jinaUri = Uri.parse('$_jinaBase${Uri.encodeComponent(url)}');
 
@@ -76,12 +93,12 @@ class ArticleSummaryService {
         if (response.statusCode == 200) {
           return _extractContent(response.body);
         }
-        // 5xx / 429 → transient, retry once. Other codes are terminal.
+        // 429 and 5xx are transient: retry once. Other codes are terminal.
         final transient = response.statusCode == 429 ||
             (response.statusCode >= 500 && response.statusCode < 600);
         if (!transient) return null;
       } catch (_) {
-        // Timeout or network error — retry once.
+        // Timeout or network error: retry once.
       }
       if (attempt == 0) {
         await Future.delayed(const Duration(seconds: 2));
@@ -106,8 +123,7 @@ class ArticleSummaryService {
     }
   }
 
-  /// Summarize via OpenAI. `reasoning_effort: minimal` — summarization
-  /// doesn't need reasoning and the latency gain is substantial.
+  /// Summarize via OpenAI at `reasoning_effort: minimal`: summaries need no reasoning, and latency drops.
   Future<String?> _summarize(
     String text,
     String apiKey,
@@ -116,7 +132,7 @@ class ArticleSummaryService {
     try {
       final response = await http
           .post(
-            Uri.parse(_openAiUrl),
+            Uri.parse('$_openAiBase/chat/completions'),
             headers: {
               'Content-Type': 'application/json',
               'Authorization': 'Bearer $apiKey',

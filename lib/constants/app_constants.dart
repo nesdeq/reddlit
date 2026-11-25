@@ -1,16 +1,20 @@
 /// Application-wide constants for magic numbers and thresholds
 class AppConstants {
-  const AppConstants._(); // Private constructor to prevent instantiation
+  const AppConstants._();
 
   // Scroll and pagination
   static const double scrollLoadThreshold = 0.7; // Load more when 70% scrolled (preload early)
 
   // Comment display
-  static const int commentAutoCollapseDepth = 5; // Auto-collapse at depth 5+
-  static const int commentMaxIndentDepth = 4; // Max visual indentation depth
+  static const int commentAutoCollapseDepth = 5;
+  static const int commentMaxIndentDepth = 4;
   static const double commentIndentStep = 10.0; // Horizontal px per depth level
   static const double threadLineWidth = 1.5;
-  static const double threadLineOpacity = 0.45; // Flat — no depth-based fade
+
+  // Post media
+  static const double feedMediaAspectRatio = 16 / 9;
+  static const double detailMediaMinHeight = 200;
+  static const double detailMediaMaxHeight = 600;
 
   // Opacity values
   static const double overlayOpacity = 0.5;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../services/auth_service.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
@@ -112,7 +112,7 @@ class _LoginSheetState extends State<LoginSheet> {
                 Text(
                   _error!,
                   style: colors.theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.red,
+                    color: colors.errorColor,
                   ),
                 ),
               ],
@@ -123,7 +123,7 @@ class _LoginSheetState extends State<LoginSheet> {
                   onPressed: _busy ? null : _submit,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: colors.accentColor,
-                    foregroundColor: Colors.white,
+                    foregroundColor: colors.onAccentColor,
                     padding: const EdgeInsets.symmetric(
                       vertical: AppTheme.spacing3,
                     ),
@@ -132,12 +132,12 @@ class _LoginSheetState extends State<LoginSheet> {
                     ),
                   ),
                   child: _busy
-                      ? const SizedBox(
+                      ? SizedBox(
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: colors.accentColor,
                           ),
                         )
                       : const Text('Connect'),

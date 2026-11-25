@@ -2,7 +2,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 /// Utility functions for URL operations
 class UrlUtils {
-  const UrlUtils._(); // Private constructor to prevent instantiation
+  const UrlUtils._();
+
   /// Check if a URL points to an image
   static bool isImageUrl(String url) {
     final uri = Uri.tryParse(url);
@@ -21,13 +22,19 @@ class UrlUtils {
       if (host == h || host.endsWith('.$h')) return true;
     }
 
-    // Check file extension for direct image URLs
     final path = uri.path.toLowerCase();
     return path.endsWith('.jpg') ||
         path.endsWith('.jpeg') ||
         path.endsWith('.png') ||
         path.endsWith('.gif') ||
         path.endsWith('.webp');
+  }
+
+  /// A URL from an HTML attribute: `&amp;` decoded, protocol-relative made https; null when empty.
+  static String? fromAttribute(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final url = raw.replaceAll('&amp;', '&');
+    return url.startsWith('//') ? 'https:$url' : url;
   }
 
   /// Check if a URL points to a video
@@ -38,7 +45,6 @@ class UrlUtils {
         url.endsWith('.mov');
   }
 
-  /// Extract YouTube video ID from various YouTube URL formats
   static final _youtubePatterns = [
     RegExp(r'youtube\.com/watch\?v=([^&]+)'),
     RegExp(r'youtu\.be/([^?]+)'),
@@ -47,6 +53,7 @@ class UrlUtils {
     RegExp(r'youtube\.com/shorts/([^?/]+)'),
   ];
 
+  /// Extract YouTube video ID from various YouTube URL formats
   static String? extractYoutubeId(String url) {
     for (final pattern in _youtubePatterns) {
       final match = pattern.firstMatch(url);
@@ -67,10 +74,12 @@ class UrlUtils {
     }
   }
 
-  /// Open URL in external browser
+  static final _redditBase = Uri.https('www.reddit.com', '/');
+
+  /// Open URL in external browser; a relative URL is a reddit path.
   static Future<bool> openUrl(String url) async {
     try {
-      final uri = Uri.parse(url);
+      final uri = _redditBase.resolve(url);
       if (uri.scheme != 'http' && uri.scheme != 'https') return false;
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -82,9 +91,9 @@ class UrlUtils {
     }
   }
 
-  /// Check if URL can be summarized (external article, not media)
+  /// Whether [url] is an external article: absolute, off reddit, not media.
   static bool canSummarize(String? url) {
-    if (url == null || url.isEmpty) return false;
+    if (url == null || !url.startsWith('http')) return false;
     if (url.contains('reddit.com') || url.contains('redd.it')) return false;
     if (isImageUrl(url) || isVideoUrl(url)) return false;
     return true;

@@ -1,6 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import '../models/post_feed.dart';
 import '../models/reddit_post.dart';
+import '../services/reddit_service.dart';
 import '../constants/app_constants.dart';
+import '../constants/sort_constants.dart';
 
 mixin PostListMixin<T extends StatefulWidget> on State<T> {
   final ScrollController scrollController = ScrollController();
@@ -8,12 +11,25 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
   bool isLoading = false;
   bool hasMore = true;
   String? loadError;
+  String sort = SortConstants.hot;
+  String? topTime;
+  int _loadGeneration = 0;
 
-  Future<List<RedditPost>> loadPostsImplementation({String? after});
+  PostFeed get feed;
 
-  List<RedditPost>? peekCachedPosts() => null;
+  Future<List<RedditPost>> loadPostsImplementation({String? after}) =>
+      RedditService().getPosts(feed, sort: sort, topTime: topTime, after: after);
 
-  Future<void> onRefresh() => loadPosts();
+  List<RedditPost>? peekCachedPosts() =>
+      RedditService().peekPosts(feed, sort: sort, topTime: topTime);
+
+  void changeSort(String sort, {String? topTime}) {
+    setState(() {
+      this.sort = sort;
+      this.topTime = topTime;
+    });
+    clearAndReload();
+  }
 
   @override
   void initState() {
@@ -41,8 +57,7 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
   }
 
   Future<void> loadPosts() async {
-    if (isLoading) return;
-
+    final generation = ++_loadGeneration;
     setState(() {
       isLoading = posts.isEmpty;
       loadError = null;
@@ -51,14 +66,14 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
 
     try {
       final newPosts = await loadPostsImplementation();
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         posts = newPosts;
         isLoading = false;
         hasMore = newPosts.isNotEmpty;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _loadGeneration) return;
       setState(() {
         isLoading = false;
         if (posts.isEmpty) loadError = 'Failed to load posts.';
@@ -66,37 +81,35 @@ mixin PostListMixin<T extends StatefulWidget> on State<T> {
     }
   }
 
-  Future<void> retry() => loadPosts();
-
   Future<void> loadMorePosts() async {
     if (isLoading || !hasMore || posts.isEmpty) return;
+    final source = posts;
     isLoading = true;
 
     try {
-      final lastPost = posts.last;
       final newPosts = await loadPostsImplementation(
-        after: 't3_${lastPost.id}',
+        after: 't3_${source.last.id}',
       );
+      // A reload replaced the list this page continues: drop the page.
+      if (!mounted || !identical(posts, source)) return;
 
-      if (!mounted) {
-        isLoading = false;
-        return;
-      }
-
-      final existingIds = posts.map((p) => p.id).toSet();
+      final existingIds = source.map((p) => p.id).toSet();
       final uniqueNewPosts = newPosts
           .where((p) => !existingIds.contains(p.id))
           .toList();
 
       setState(() {
-        posts.addAll(uniqueNewPosts);
+        posts = [...source, ...uniqueNewPosts];
         hasMore = uniqueNewPosts.isNotEmpty;
+        isLoading = false;
       });
     } catch (_) {
-      if (mounted) setState(() => hasMore = false);
+      if (!mounted || !identical(posts, source)) return;
+      setState(() {
+        hasMore = false;
+        isLoading = false;
+      });
     }
-
-    isLoading = false;
   }
 
   void scrollToTop() {

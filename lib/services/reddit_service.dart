@@ -1,22 +1,19 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
 import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 
+import '../models/comments_page.dart';
+import '../models/post_feed.dart';
 import '../models/reddit_post.dart';
 import '../models/reddit_comment.dart';
 import '../models/reddit_user.dart';
 import '../models/subreddit.dart';
 import '../constants/sort_constants.dart';
+import '../utils/reddit_link.dart';
 import 'reddit_cache.dart';
 import 'request_pipeline.dart';
-
-/// A parsed post page: the post enriched with selftext/gallery (absent from
-/// listings, since old.reddit lazy-loads them) plus its comment tree.
-class CommentsPage {
-  final RedditPost? post;
-  final List<RedditComment> comments;
-  const CommentsPage({this.post, this.comments = const []});
-}
 
 class RedditService {
   RedditService._internal();
@@ -25,69 +22,68 @@ class RedditService {
 
   static const String _host = 'old.reddit.com';
 
-  Future<List<RedditPost>> getFrontpage({
+  Future<List<RedditPost>> getPosts(
+    PostFeed feed, {
     String sort = SortConstants.hot,
-    String? after,
     String? topTime,
-  }) => _fetchPosts(path: '', sort: sort, after: after, topTime: topTime);
-
-  Future<List<RedditPost>> getSubredditPosts(
-    String subreddit, {
-    String sort = SortConstants.hot,
     String? after,
-    String? topTime,
-  }) => _fetchPosts(
-    path: '/r/$subreddit',
-    sort: sort,
-    after: after,
-    topTime: topTime,
-  );
+  }) async {
+    final uris = _feedUris(feed, sort: sort, topTime: topTime, after: after);
+    if (feed is! FollowingFeed) {
+      return uris.isEmpty ? const [] : _getListing(uris.single);
+    }
+    final streams = await Future.wait(uris.map(
+      (uri) => _getListing(uri).catchError((_) => const <RedditPost>[]),
+    ));
+    return _mergePosts(streams, sort);
+  }
 
-  Future<List<RedditPost>> getPersonalPosts(
-    List<String> subreddits, {
+  List<RedditPost>? peekPosts(
+    PostFeed feed, {
     String sort = SortConstants.hot,
-    String? after,
     String? topTime,
   }) {
-    if (subreddits.isEmpty) return Future.value(const []);
-    return _fetchPosts(
-      path: '/r/${subreddits.join('+')}',
-      sort: sort,
-      after: after,
-      topTime: topTime,
-    );
+    final streams = _feedUris(feed, sort: sort, topTime: topTime)
+        .map((uri) => _peek<List<RedditPost>>(CacheBucket.postList, uri))
+        .nonNulls
+        .toList();
+    if (streams.isEmpty) return null;
+    return feed is FollowingFeed ? _mergePosts(streams, sort) : streams.single;
   }
 
-  Future<List<RedditPost>> getUserPosts(
-    String username, {
+  /// The listing URIs [feed] requests: one per listing, one per followed user.
+  List<Uri> _feedUris(
+    PostFeed feed, {
+    required String sort,
+    String? topTime,
     String? after,
-    String? sort,
-    String? topTime,
-  }) => _withCache<List<RedditPost>>(
-    bucket: CacheBucket.postList,
-    uri: _userPostsUri(
-      username,
-      after: after,
-      sort: sort,
-      topTime: topTime,
-    ),
-    parse: _parsePosts,
-  );
+  }) => switch (feed) {
+    FrontpageFeed() => [
+      _postsUri('', sort: sort, after: after, topTime: topTime),
+    ],
+    SubredditsFeed(:final names) => [
+      if (names.isNotEmpty)
+        _postsUri(
+          '/r/${names.join('+')}',
+          sort: sort,
+          after: after,
+          topTime: topTime,
+        ),
+    ],
+    UserFeed(:final username) => [_userPostsUri(username, after: after)],
+    FollowingFeed(:final usernames) => [
+      if (after == null)
+        for (final u in usernames)
+          _userPostsUri(u, sort: sort, topTime: topTime),
+    ],
+  };
 
-  Future<List<RedditPost>> getFollowingPosts(
-    List<String> usernames, {
-    String sort = SortConstants.newSort,
-    String? topTime,
-  }) async {
-    if (usernames.isEmpty) return const [];
-    final results = await Future.wait(
-      usernames.map(
-        (u) => getUserPosts(u, sort: sort, topTime: topTime)
-            .catchError((_) => const <RedditPost>[]),
-      ),
-    );
-    return _mergePosts(results, sort);
-  }
+  Future<List<RedditPost>> _getListing(Uri uri) =>
+      _withCache<List<RedditPost>>(
+        bucket: CacheBucket.postList,
+        uri: uri,
+        parse: RedditPost.parseListing,
+      );
 
   List<RedditPost> _mergePosts(List<List<RedditPost>> streams, String sort) {
     final seen = <String>{};
@@ -105,46 +101,39 @@ class RedditService {
     return merged;
   }
 
-  Future<List<RedditPost>> _fetchPosts({
-    required String path,
-    required String sort,
-    String? after,
-    String? topTime,
-  }) => _withCache<List<RedditPost>>(
-    bucket: CacheBucket.postList,
-    uri: _postsUri(path, sort: sort, after: after, topTime: topTime),
-    parse: _parsePosts,
-  );
-
   Future<CommentsPage> getComments(
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
     String? permalink,
+    String? context,
   }) => _withCache<CommentsPage>(
     bucket: CacheBucket.comments,
-    uri: _commentsUri(subreddit, postId, sort: sort),
-    fetchUri: _commentsFetchUri(permalink, subreddit, postId, sort),
-    parse: (doc) => _parseCommentsPage(doc, subreddit, postId),
+    uri: _commentsUri(
+      subreddit,
+      postId,
+      sort: sort,
+      permalink: permalink,
+      context: context,
+    ),
+    parse: (doc) => CommentsPage.fromDocument(doc, subreddit, postId),
   );
 
-  /// Expand a "more replies" placeholder by re-fetching the parent thread's
-  /// HTML (the JSON morechildren API is blocked). Returns the freshly parsed
-  /// things at the placeholder's location — a single re-expanded parent
-  /// comment, or the full top-level list when the placeholder was post-level.
-  Future<List<RedditComment>> loadMoreComments({
+  /// Re-fetch a placeholder's thread (the morechildren JSON API is blocked); null when the fetch fails.
+  Future<List<RedditComment>?> loadMoreComments({
     required String permalink,
     required String parentFullname,
     String sort = SortConstants.confidence,
-  }) async {
-    final comments =
-        await _fetchAndParse<List<RedditComment>>(moreCommentsUri(permalink, sort),
-            (doc) {
-      final table = doc.querySelector('.commentarea .sitetable');
-      if (table == null) return const <RedditComment>[];
-      return RedditComment.parseThings(table, 0, permalink, parentFullname);
-    });
-    return comments ?? const [];
+  }) => _fetchAndParse<List<RedditComment>>(
+    moreCommentsUri(permalink, sort),
+    (doc) => RedditComment.parseCommentArea(doc, permalink, parentFullname),
+  );
+
+  /// The thread, subreddit or user [link] stands for; null when reddit does not name one.
+  Future<RedditLink?> resolveShareLink(ShareLink link) async {
+    final target = await RequestPipeline.instance.getRedirect(link.uri);
+    final resolved = target == null ? null : RedditLink.parse(target.toString());
+    return resolved is ShareLink ? null : resolved;
   }
 
   Future<RedditUser> getUserInfo(String username) async {
@@ -172,59 +161,8 @@ class RedditService {
     return _withCache<List<Subreddit>>(
       bucket: CacheBucket.subredditSearch,
       uri: uri,
-      parse: (doc) {
-        final subs = doc
-            .querySelectorAll('[data-testid="search-community"]')
-            .map(Subreddit.fromCommunityCard)
-            .where((s) => s.displayName.isNotEmpty)
-            .toList();
-        subs.sort((a, b) => b.weeklyVisitors.compareTo(a.weeklyVisitors));
-        return subs;
-      },
+      parse: Subreddit.parseSearchResults,
     );
-  }
-
-  List<RedditPost>? peekFrontpage({
-    String sort = SortConstants.hot,
-    String? topTime,
-  }) => _peekPosts(path: '', sort: sort, topTime: topTime);
-
-  List<RedditPost>? peekSubredditPosts(
-    String subreddit, {
-    String sort = SortConstants.hot,
-    String? topTime,
-  }) => _peekPosts(path: '/r/$subreddit', sort: sort, topTime: topTime);
-
-  List<RedditPost>? peekPersonalPosts(
-    List<String> subreddits, {
-    String sort = SortConstants.hot,
-    String? topTime,
-  }) {
-    if (subreddits.isEmpty) return null;
-    return _peekPosts(
-      path: '/r/${subreddits.join('+')}',
-      sort: sort,
-      topTime: topTime,
-    );
-  }
-
-  List<RedditPost>? peekUserPosts(String username) =>
-      _peek<List<RedditPost>>(CacheBucket.postList, _userPostsUri(username));
-
-  List<RedditPost>? peekFollowingPosts(
-    List<String> usernames, {
-    String sort = SortConstants.newSort,
-    String? topTime,
-  }) {
-    if (usernames.isEmpty) return null;
-    final streams = <List<RedditPost>>[];
-    for (final u in usernames) {
-      final uri = _userPostsUri(u, sort: sort, topTime: topTime);
-      final cached = _peek<List<RedditPost>>(CacheBucket.postList, uri);
-      if (cached != null) streams.add(cached);
-    }
-    if (streams.isEmpty) return null;
-    return _mergePosts(streams, sort);
   }
 
   RedditUser? peekUserInfo(String username) =>
@@ -234,18 +172,17 @@ class RedditService {
     String subreddit,
     String postId, {
     String sort = SortConstants.confidence,
+    String? permalink,
+    String? context,
   }) => _peek<CommentsPage>(
     CacheBucket.comments,
-    _commentsUri(subreddit, postId, sort: sort),
-  );
-
-  List<RedditPost>? _peekPosts({
-    required String path,
-    required String sort,
-    String? topTime,
-  }) => _peek<List<RedditPost>>(
-    CacheBucket.postList,
-    _postsUri(path, sort: sort, topTime: topTime),
+    _commentsUri(
+      subreddit,
+      postId,
+      sort: sort,
+      permalink: permalink,
+      context: context,
+    ),
   );
 
   T? _peek<T>(CacheBucket bucket, Uri uri) =>
@@ -287,26 +224,20 @@ class RedditService {
   Uri _userInfoUri(String username) =>
       Uri.https(_host, '/user/$username/');
 
-  Uri _commentsUri(String subreddit, String postId, {required String sort}) =>
-      Uri.https(_host, '/r/$subreddit/comments/$postId/', {'sort': sort});
-
-  /// The URL to actually fetch for a comments page. reddit 301-redirects the
-  /// slugless `/comments/<id>/` path to the canonical title-slug URL; when the
-  /// title has non-ASCII characters (German umlauts, etc.) the redirect target
-  /// is raw UTF-8 the HTTP client can't follow, so comments never load.
-  /// Requesting the permalink directly (percent-encoded by Uri.https) lands on
-  /// the canonical URL with no redirect. Falls back to the slugless path.
-  Uri _commentsFetchUri(
-    String? permalink,
+  /// A comments page, by permalink when known: the slugless path redirects to a slug URL the HTTP client cannot follow when the title is non-ASCII.
+  Uri _commentsUri(
     String subreddit,
-    String postId,
-    String sort,
-  ) {
-    if (permalink == null || permalink.isEmpty) {
-      return _commentsUri(subreddit, postId, sort: sort);
-    }
-    return Uri.https(_host, permalink, {'sort': sort});
-  }
+    String postId, {
+    required String sort,
+    String? permalink,
+    String? context,
+  }) => Uri.https(
+    _host,
+    permalink == null || permalink.isEmpty
+        ? '/r/$subreddit/comments/$postId/'
+        : permalink,
+    {'sort': sort, 'context': ?context},
+  );
 
   /// The fetch URL for expanding a "more comments" placeholder. [permalink] is a
   /// full URL; Uri.parse already normalizes a raw non-ASCII path to its
@@ -323,14 +254,13 @@ class RedditService {
   Future<T> _withCache<T>({
     required CacheBucket bucket,
     required Uri uri,
-    Uri? fetchUri,
     required T Function(Document doc) parse,
   }) async {
     final key = uri.toString();
     final cached = RedditCache.instance.lookup<T>(bucket, key);
     if (cached != null) return cached;
 
-    final fresh = await _fetchAndParse<T>(fetchUri ?? uri, parse);
+    final fresh = await _fetchAndParse<T>(uri, parse);
     if (fresh == null) {
       throw const RedditServiceException('Network request failed.');
     }
@@ -342,50 +272,34 @@ class RedditService {
     final body = await RequestPipeline.instance.getHtml(uri);
     if (body == null) return null;
     try {
-      return parse(html_parser.parse(body));
-    } catch (_) {
+      return await Isolate.run(() => parse(html_parser.parse(body)));
+    } catch (error, stack) {
+      FlutterError.reportError(FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'reddit_service',
+        context: ErrorDescription('while parsing $uri'),
+      ));
       return null;
     }
-  }
-
-  /// Parse a listing page (`#siteTable`) into posts, skipping promoted ads and
-  /// non-link things (subreddit announcement rows, etc.).
-  List<RedditPost> _parsePosts(Document doc) {
-    final table = doc.getElementById('siteTable');
-    if (table == null) return const [];
-    return table.children
-        .where((e) => e.classes.contains('thing'))
-        .where((e) => (e.attributes['data-fullname'] ?? '').startsWith('t3_'))
-        .where((e) => e.attributes['data-promoted'] != 'true')
-        .map(RedditPost.fromThing)
-        .toList();
-  }
-
-  CommentsPage _parseCommentsPage(Document doc, String subreddit, String postId) {
-    final postThing = doc.querySelector('#siteTable div.thing');
-    final post = (postThing != null &&
-            (postThing.attributes['data-fullname'] ?? '').startsWith('t3_'))
-        ? RedditPost.fromThing(postThing)
-        : null;
-
-    final permalink = postThing?.attributes['data-permalink'] ??
-        '/r/$subreddit/comments/$postId/';
-    final table = doc.querySelector('.commentarea .sitetable');
-    final comments = table == null
-        ? const <RedditComment>[]
-        : RedditComment.parseThings(table, 0, permalink, 't3_$postId');
-
-    return CommentsPage(post: post, comments: comments);
   }
 
   void cacheExpandedComments(
     String subreddit,
     String postId,
     String sort,
-    CommentsPage page,
-  ) {
+    CommentsPage page, {
+    String? permalink,
+    String? context,
+  }) {
     RedditCache.instance.put(
-      _commentsUri(subreddit, postId, sort: sort).toString(),
+      _commentsUri(
+        subreddit,
+        postId,
+        sort: sort,
+        permalink: permalink,
+        context: context,
+      ).toString(),
       page,
     );
   }

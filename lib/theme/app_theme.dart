@@ -1,111 +1,131 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 
 class AppTheme {
-  // Light theme colors - Jony Ive inspired: minimal, clean, focused
-  static const Color primary = Color(0xFF000000);
-  static const Color background = Color(0xFFFAFAFA);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color textPrimary = Color(0xFF000000);
-  static const Color textSecondary = Color(0xFF666666);
-  static const Color textTertiary = Color(0xFF999999);
-  static const Color divider = Color(0xFFE0E0E0);
-  static const Color accent = Color(0xFF007AFF);
+  static const String uiFont = 'Source Sans 3';
+  static const String readingFont = 'Source Serif 4';
 
-  // Dark theme colors - soft contrast, easy on the eyes
-  static const Color darkPrimary = Color(0xFFFFFFFF);
-  static const Color darkBackground = Color(0xFF1C1C1E);
-  static const Color darkSurface = Color(0xFF2C2C2E);
-  static const Color darkTextPrimary = Color(0xFFFFFFFF);
-  static const Color darkTextSecondary = Color(0xFFA1A1A6);
-  static const Color darkTextTertiary = Color(0xFF6B6B70);
-  static const Color darkDivider = Color(0xFF38383A);
-  static const Color darkAccent = Color(0xFF0A84FF);
+  /// Bundled fonts as (name, license asset), for the license registry.
+  static const List<(String, String)> fontLicenses = [
+    (uiFont, 'assets/fonts/OFL-SourceSans3.txt'),
+    (readingFont, 'assets/fonts/OFL-SourceSerif4.txt'),
+  ];
+
+  /// WCAG 2.2 SC 1.4.12 line height for running text.
+  static const double readingLineHeight = 1.5;
+
+  /// [style] set in the reading typeface, for long-form text.
+  static TextStyle reading(TextStyle? style) => (style ?? const TextStyle())
+      .copyWith(fontFamily: readingFont, height: readingLineHeight);
+
+  // Light theme colors
+  static const Color background = Color(0xFFF4F0E8);
+  static const Color surface = Color(0xFFFBF9F4);
+  static const Color textPrimary = Color(0xFF1F1E1B);
+  static const Color textSecondary = Color(0xFF5C5A53);
+  static const Color textTertiary = Color(0xFF6C6960);
+  static const Color divider = Color(0xFFE3DDD0);
+  static const Color threadLine = Color(0xFFC4BAA7);
+  static const Color accent = Color(0xFFB8491F);
+  static const Color accentSoft = Color(0xFFFCEEE4);
+  static const Color onAccent = Color(0xFFFFFFFF);
+  static const Color error = Color(0xFFB3261E);
+  static const Color success = Color(0xFF4F6B3A);
+  static const Color warning = Color(0xFF8A5A00);
+
+  // Dark theme colors
+  static const Color darkBackground = Color(0xFF1C1B19);
+  static const Color darkSurface = Color(0xFF262522);
+  static const Color darkTextPrimary = Color(0xFFF2EEE6);
+  static const Color darkTextSecondary = Color(0xFFB9B4A8);
+  static const Color darkTextTertiary = Color(0xFF959084);
+  static const Color darkDivider = Color(0xFF3A3833);
+  static const Color darkThreadLine = Color(0xFF5A564E);
+  static const Color darkAccent = Color(0xFFE58A63);
+  static const Color darkAccentSoft = Color(0xFF38251C);
+  static const Color darkOnAccent = Color(0xFF1C1B19);
+  static const Color darkError = Color(0xFFF2857A);
+  static const Color darkSuccess = Color(0xFFA3BF8A);
+  static const Color darkWarning = Color(0xFFE0B25C);
 
   static ThemeData get lightTheme => _buildTheme(
     brightness: Brightness.light,
-    primaryColor: primary,
     backgroundColor: background,
     surfaceColor: surface,
     textPrimaryColor: textPrimary,
     textSecondaryColor: textSecondary,
+    textTertiaryColor: textTertiary,
     accentColor: accent,
+    onAccentColor: onAccent,
     dividerColor: divider,
-    errorColor: const Color(0xFFFF3B30),
+    errorColor: error,
     overlayStyle: SystemUiOverlayStyle.dark,
   );
 
   static ThemeData get darkTheme => _buildTheme(
     brightness: Brightness.dark,
-    primaryColor: darkPrimary,
     backgroundColor: darkBackground,
     surfaceColor: darkSurface,
     textPrimaryColor: darkTextPrimary,
     textSecondaryColor: darkTextSecondary,
+    textTertiaryColor: darkTextTertiary,
     accentColor: darkAccent,
+    onAccentColor: darkOnAccent,
     dividerColor: darkDivider,
-    errorColor: const Color(0xFFFF453A),
+    errorColor: darkError,
     overlayStyle: SystemUiOverlayStyle.light,
-    onSurface: darkTextPrimary,
   );
 
   static ThemeData _buildTheme({
     required Brightness brightness,
-    required Color primaryColor,
     required Color backgroundColor,
     required Color surfaceColor,
     required Color textPrimaryColor,
     required Color textSecondaryColor,
+    required Color textTertiaryColor,
     required Color accentColor,
+    required Color onAccentColor,
     required Color dividerColor,
     required Color errorColor,
     required SystemUiOverlayStyle overlayStyle,
-    Color? onSurface,
   }) {
-    final isLight = brightness == Brightness.light;
-    final colorScheme = isLight
-        ? ColorScheme.light(
-            primary: primaryColor,
-            secondary: accentColor,
-            surface: surfaceColor,
-            error: errorColor,
-          )
-        : ColorScheme.dark(
-            primary: primaryColor,
-            secondary: accentColor,
-            surface: surfaceColor,
-            error: errorColor,
-            onSurface: onSurface ?? textPrimaryColor,
-          );
-
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      primaryColor: primaryColor,
       scaffoldBackgroundColor: backgroundColor,
-      fontFamily: GoogleFonts.inter().fontFamily,
-      colorScheme: colorScheme,
+      fontFamily: uiFont,
+      // Roles not named here (containers, inverse surface) are warm neutrals derived from the accent.
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: accentColor,
+        brightness: brightness,
+        primary: accentColor,
+        onPrimary: onAccentColor,
+        secondary: accentColor,
+        onSecondary: onAccentColor,
+        surface: surfaceColor,
+        onSurface: textPrimaryColor,
+        onSurfaceVariant: textSecondaryColor,
+        outline: textTertiaryColor,
+        outlineVariant: dividerColor,
+        error: errorColor,
+        surfaceTint: Colors.transparent,
+      ),
       appBarTheme: AppBarTheme(
-        backgroundColor: surfaceColor,
+        backgroundColor: backgroundColor,
         foregroundColor: textPrimaryColor,
         elevation: 0,
+        scrolledUnderElevation: 0,
         centerTitle: false,
         systemOverlayStyle: overlayStyle,
-        titleTextStyle: GoogleFonts.inter(
+        titleTextStyle: TextStyle(
+          fontFamily: readingFont,
           color: textPrimaryColor,
-          fontSize: 34,
+          fontSize: 28,
           fontWeight: FontWeight.w700,
-          letterSpacing: -0.5,
         ),
       ),
       textTheme: _buildTextTheme(textPrimaryColor, textSecondaryColor),
-      cardTheme: CardThemeData(
-        color: surfaceColor,
-        elevation: 0,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        margin: EdgeInsets.zero,
-      ),
       dividerTheme: DividerThemeData(
         color: dividerColor,
         thickness: 0.5,
@@ -115,45 +135,50 @@ class AppTheme {
         color: textSecondaryColor,
         size: 22,
       ),
+      extensions: [YoutubePlayerTheme(progressBarActiveColor: accentColor)],
     );
   }
 
+  /// Headlines in the reading typeface; everything else inherits the UI typeface.
   static TextTheme _buildTextTheme(Color primaryColor, Color secondaryColor) {
     return TextTheme(
-      displayLarge: GoogleFonts.inter(
-        fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5,
+      displayLarge: TextStyle(
+        fontFamily: readingFont,
+        fontSize: 34, fontWeight: FontWeight.w700,
         color: primaryColor, height: 1.2,
       ),
-      displayMedium: GoogleFonts.inter(
-        fontSize: 28, fontWeight: FontWeight.w600, letterSpacing: -0.3,
+      displayMedium: TextStyle(
+        fontFamily: readingFont,
+        fontSize: 28, fontWeight: FontWeight.w600,
         color: primaryColor, height: 1.2,
       ),
-      titleLarge: GoogleFonts.inter(
-        fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.2,
+      titleLarge: TextStyle(
+        fontFamily: readingFont,
+        fontSize: 17, fontWeight: FontWeight.w600,
         color: primaryColor, height: 1.3,
       ),
-      titleMedium: GoogleFonts.inter(
-        fontSize: 15, fontWeight: FontWeight.w500, letterSpacing: -0.2,
+      titleMedium: TextStyle(
+        fontSize: 15, fontWeight: FontWeight.w500,
         color: primaryColor, height: 1.3,
       ),
-      bodyLarge: GoogleFonts.inter(
-        fontSize: 17, fontWeight: FontWeight.w400, letterSpacing: -0.2,
+      bodyLarge: TextStyle(
+        fontSize: 17, fontWeight: FontWeight.w400,
         color: primaryColor, height: 1.4,
       ),
-      bodyMedium: GoogleFonts.inter(
-        fontSize: 15, fontWeight: FontWeight.w400, letterSpacing: -0.1,
+      bodyMedium: TextStyle(
+        fontSize: 15, fontWeight: FontWeight.w400,
         color: primaryColor, height: 1.4,
       ),
-      bodySmall: GoogleFonts.inter(
-        fontSize: 13, fontWeight: FontWeight.w400, letterSpacing: -0.1,
+      bodySmall: TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w400,
         color: secondaryColor, height: 1.3,
       ),
-      labelMedium: GoogleFonts.inter(
-        fontSize: 13, fontWeight: FontWeight.w500, letterSpacing: -0.1,
+      labelMedium: TextStyle(
+        fontSize: 13, fontWeight: FontWeight.w500,
         color: secondaryColor, height: 1.2,
       ),
-      labelSmall: GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w500, letterSpacing: -0.05,
+      labelSmall: TextStyle(
+        fontSize: 12, fontWeight: FontWeight.w500,
         color: secondaryColor, height: 1.2,
       ),
     );

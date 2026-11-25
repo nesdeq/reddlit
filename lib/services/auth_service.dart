@@ -92,7 +92,7 @@ class AuthService extends ChangeNotifier {
     };
     final host = Uri.tryParse(url)?.host.toLowerCase() ?? '';
     final cookie = _cookie;
-    if (cookie != null && cookie.isNotEmpty && _isRedditHost(host)) {
+    if (cookie != null && cookie.isNotEmpty && isRedditHost(host)) {
       headers['Cookie'] = cookie;
     }
     return headers;
@@ -141,7 +141,8 @@ class AuthService extends ChangeNotifier {
     return resp.statusCode == 200 && resp.body.contains('loggedin');
   }
 
-  static bool _isRedditHost(String host) {
+  /// Hosts the session cookie may be sent to.
+  static bool isRedditHost(String host) {
     const roots = ['redd.it', 'reddit.com', 'redditmedia.com', 'redditstatic.com'];
     for (final r in roots) {
       if (host == r || host.endsWith('.$r')) return true;

@@ -1,17 +1,22 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'services/auth_service.dart';
+import 'services/settings_provider.dart';
 import 'theme/app_theme.dart';
-import 'theme/theme_provider.dart';
 import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  LicenseRegistry.addLicense(() async* {
+    for (final (font, license) in AppTheme.fontLicenses) {
+      yield LicenseEntryWithLineBreaks([font], await rootBundle.loadString(license));
+    }
+  });
   await AuthService.instance.load();
 
-  // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -20,7 +25,7 @@ Future<void> main() async {
 
   runApp(
     ChangeNotifierProvider(
-      create: (_) => ThemeProvider(),
+      create: (_) => SettingsProvider(),
       child: const ReddlitApp(),
     ),
   );
@@ -31,13 +36,13 @@ class ReddlitApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, child) {
         return MaterialApp(
           title: 'Reddlit',
           theme: AppTheme.lightTheme,
           darkTheme: AppTheme.darkTheme,
-          themeMode: themeProvider.themeMode,
+          themeMode: settings.themeMode,
           themeAnimationDuration: const Duration(milliseconds: 320),
           themeAnimationCurve: Curves.easeOutCubic,
           debugShowCheckedModeBanner: false,

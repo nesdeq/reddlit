@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../constants/app_constants.dart';
@@ -31,7 +31,6 @@ class ModalWidgets {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Drag handle
                 const SizedBox(height: AppTheme.spacing2),
                 Container(
                   width: 36,
@@ -42,7 +41,6 @@ class ModalWidgets {
                   ),
                 ),
                 const SizedBox(height: AppTheme.spacing4),
-                // Scrollable content
                 Flexible(
                   child: SingleChildScrollView(
                     child: Column(
@@ -60,9 +58,7 @@ class ModalWidgets {
     );
   }
 
-  /// List tile for selection options (used in sort dialogs, etc.).
-  /// Emits a subtle haptic tick on tap — discrete selections should feel like
-  /// picking something physical.
+  /// Option row for selection sheets; a tap gives a selection haptic tick.
   static Widget selectionListTile({
     required BuildContext context,
     required String label,
@@ -104,10 +100,10 @@ class ModalWidgets {
     );
   }
 
-  /// Titled bottom-sheet list of (value, label) options. Pops on tap.
+  /// Bottom-sheet list of (value, label) options, optionally titled. Pops on tap.
   static void showTitledSelection({
     required BuildContext context,
-    required String title,
+    String? title,
     required List<(String, String)> options,
     required bool Function(String value) isSelected,
     required ValueChanged<String> onSelected,
@@ -116,16 +112,18 @@ class ModalWidgets {
     showBottomSheetModal(
       context: context,
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
-          child: Text(
-            title,
-            style: colors.theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w600,
+        if (title != null) ...[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spacing4),
+            child: Text(
+              title,
+              style: colors.theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: AppTheme.spacing2),
+          const SizedBox(height: AppTheme.spacing2),
+        ],
         ...options.map((option) {
           final (value, label) = option;
           return selectionListTile(

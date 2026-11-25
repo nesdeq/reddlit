@@ -1,6 +1,6 @@
 /// Sort options for posts and comments
 class SortConstants {
-  const SortConstants._(); // Private constructor to prevent instantiation
+  const SortConstants._();
   // Post sort options (matching old.reddit.com)
   static const String hot = 'hot';
   static const String newSort = 'new';

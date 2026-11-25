@@ -1,5 +1,7 @@
 import 'package:html/dom.dart';
 
+import '../utils/url_utils.dart';
+
 class Subreddit {
   final String displayName;
   final int weeklyVisitors;
@@ -27,7 +29,7 @@ class Subreddit {
         ) ??
         0;
 
-    final icon = _clean(card.querySelector('img')?.attributes['src']);
+    final icon = UrlUtils.fromAttribute(card.querySelector('img')?.attributes['src']);
 
     final desc = card
         .querySelector('[data-testid="search-subreddit-desc-text"]')
@@ -42,12 +44,16 @@ class Subreddit {
     );
   }
 
-  static final _namePattern = RegExp(r'/r/([A-Za-z0-9_]{2,21})');
-
-  static String? _clean(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    var url = raw.replaceAll('&amp;', '&');
-    if (url.startsWith('//')) url = 'https:$url';
-    return url;
+  /// Cards of a community-search page, ranked by weekly visitors, highest first.
+  static List<Subreddit> parseSearchResults(Document doc) {
+    final subs = doc
+        .querySelectorAll('[data-testid="search-community"]')
+        .map(Subreddit.fromCommunityCard)
+        .where((s) => s.displayName.isNotEmpty)
+        .toList();
+    subs.sort((a, b) => b.weeklyVisitors.compareTo(a.weeklyVisitors));
+    return subs;
   }
+
+  static final _namePattern = RegExp(r'/r/([A-Za-z0-9_]{2,21})');
 }

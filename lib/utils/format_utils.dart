@@ -1,6 +1,6 @@
 /// Utility functions for formatting numbers, time, and dates
 class FormatUtils {
-  const FormatUtils._(); // Private constructor to prevent instantiation
+  const FormatUtils._();
 
   /// Formats large numbers with K/M suffixes
   /// Examples: 1234 -> "1.2K", 1234567 -> "1.2M"

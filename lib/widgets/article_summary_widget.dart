@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
-import '../theme/theme_provider.dart';
 import '../services/article_summary_service.dart';
+import '../services/settings_provider.dart';
 import '../screens/settings_screen.dart';
 import 'modal_widgets.dart';
 
@@ -17,22 +17,22 @@ class ArticleSummaryWidget {
     required String title,
   }) async {
     final colors = ThemeHelper(context);
-    final themeProvider = context.read<ThemeProvider>();
-    final apiKey = themeProvider.openAiApiKey;
-    final language = themeProvider.summaryLanguage;
+    final settings = context.read<SettingsProvider>();
+    final apiKey = settings.openAiApiKey;
+    final language = settings.summaryLanguage;
 
     // Check if API key is set and valid
-    if (apiKey.isEmpty || !themeProvider.isApiKeyValid) {
+    if (apiKey.isEmpty || !settings.isApiKeyValid) {
       _showApiKeyRequiredDialog(context, apiKey.isEmpty);
       return;
     }
 
-    // Show loading dialog
+    var dialogOpen = true;
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => _LoadingDialog(colors: colors),
-    );
+    ).whenComplete(() => dialogOpen = false);
 
     final service = ArticleSummaryService();
     final result = await service.summarizeArticle(
@@ -41,7 +41,8 @@ class ArticleSummaryWidget {
       language: language,
     );
 
-    if (!context.mounted) return;
+    // Back also closes the dialog: the user cancelled, and popping now would remove the page.
+    if (!context.mounted || !dialogOpen) return;
     Navigator.pop(context);
 
     if (result.isSuccess) {
@@ -132,7 +133,7 @@ class ArticleSummaryWidget {
               const SizedBox(height: AppTheme.spacing4),
               SelectableText(
                 summary,
-                style: colors.theme.textTheme.bodyLarge?.copyWith(height: 1.6),
+                style: AppTheme.reading(colors.theme.textTheme.bodyLarge),
               ),
               const SizedBox(height: AppTheme.spacing4),
               Container(

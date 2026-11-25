@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:video_player/video_player.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
@@ -34,16 +34,17 @@ class _RedditVideoPlayerState extends State<RedditVideoPlayer> {
 
   Future<void> _initializeVideo() async {
     try {
-      final controller = VideoPlayerController.networkUrl(
+      final controller = _controller = VideoPlayerController.networkUrl(
         Uri.parse(widget.videoUrl),
         httpHeaders: AuthService.instance.mediaHeaders(widget.videoUrl),
       );
       await controller.initialize();
       controller.setLooping(true);
       controller.setVolume(1.0);
-      _controller = controller;
       if (mounted) setState(() => _isInitialized = true);
     } catch (_) {
+      _controller?.dispose();
+      _controller = null;
       if (mounted) setState(() => _hasError = true);
     }
   }

@@ -12,8 +12,7 @@ class RedditComment {
   final String? parentId;
   final List<RedditComment> replies;
 
-  /// True when this node represents a Reddit "more" placeholder — tap to fetch
-  /// the parent thread at [morePermalink] and splice the replies in.
+  /// A reddit "more" placeholder: a tap fetches the thread at [morePermalink] and splices its replies in.
   final bool isMorePlaceholder;
   final int replyCount;
 
@@ -36,7 +35,11 @@ class RedditComment {
   });
 
   /// Parse a single `div.thing.comment` and, recursively, its reply subtree.
-  factory RedditComment.fromThing(Element thing, {int depth = 0}) {
+  factory RedditComment.fromThing(
+    Element thing, {
+    int depth = 0,
+    String? parentId,
+  }) {
     final fullname = thing.attributes['data-fullname'] ?? '';
     final id = fullname.startsWith('t1_') ? fullname.substring(3) : fullname;
     final permalink = thing.attributes['data-permalink'];
@@ -50,7 +53,7 @@ class RedditComment {
           ?.querySelector('.tagline time')
           ?.attributes['datetime']),
       depth: depth,
-      parentId: fullname,
+      parentId: parentId,
       replies: parseReplies(thing, depth + 1, permalink ?? '', fullname),
     );
   }
@@ -110,6 +113,17 @@ class RedditComment {
     return parseThings(sitetable, depth, parentPermalink, parentFullname);
   }
 
+  /// Top-level comments and placeholders of a comments page's `.commentarea`.
+  static List<RedditComment> parseCommentArea(
+    Document doc,
+    String permalink,
+    String parentFullname,
+  ) {
+    final table = doc.querySelector('.commentarea .sitetable');
+    if (table == null) return const [];
+    return parseThings(table, 0, permalink, parentFullname);
+  }
+
   /// Parse the direct `.thing` children of a sitetable into comments and more
   /// placeholders. Shared by the reply walk and the top-level comment area.
   static List<RedditComment> parseThings(
@@ -129,7 +143,7 @@ class RedditComment {
           parentFullname: parentFullname,
         ));
       } else if (el.classes.contains('comment')) {
-        out.add(RedditComment.fromThing(el, depth: depth));
+        out.add(RedditComment.fromThing(el, depth: depth, parentId: parentFullname));
       }
     }
     return out;
@@ -161,6 +175,10 @@ class RedditComment {
     // score-hidden comments expose no number for the first hours.
     return 0;
   }
+
+  /// Whether this comment or one of its replies, at any depth, is [id].
+  bool contains(String id) =>
+      this.id == id || replies.any((reply) => reply.contains(id));
 
   RedditComment copyWith({
     List<RedditComment>? replies,

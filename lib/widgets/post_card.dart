@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../models/reddit_post.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
@@ -46,7 +46,6 @@ class PostCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Metadata with summary button
               Row(
                 children: [
                   Expanded(
@@ -78,20 +77,14 @@ class PostCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppTheme.spacing2),
-
-              // Title
               Text(
                 post.title,
                 style: colors.theme.textTheme.titleLarge,
                 maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
-
-              // Content preview based on type
               const SizedBox(height: AppTheme.spacing3),
               ContentPreview(post: post),
-
-              // Self text preview with markdown support
               if (post.selftext != null && post.selftext!.isNotEmpty) ...[
                 const SizedBox(height: AppTheme.spacing2),
                 CommentContent(
@@ -101,10 +94,7 @@ class PostCard extends StatelessWidget {
                   ),
                 ),
               ],
-
               const SizedBox(height: AppTheme.spacing3),
-
-              // Engagement metrics
               ContentWidgets.engagementMetrics(
                 context: context,
                 score: post.score,

@@ -1,17 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
+import '../models/post_feed.dart';
 import '../models/reddit_user.dart';
-import '../models/reddit_post.dart';
 import '../services/reddit_service.dart';
-import '../widgets/post_card.dart';
+import '../services/settings_provider.dart';
 import '../widgets/loading_widgets.dart';
 import '../widgets/post_list_mixin.dart';
+import '../widgets/post_list_view.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
-import '../theme/theme_provider.dart';
 import '../utils/format_utils.dart';
 import '../utils/haptics.dart';
-import '../utils/navigation_helper.dart';
 
 class UserProfileScreen extends StatefulWidget {
   final String username;
@@ -34,8 +33,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
   @override
   void initState() {
     super.initState();
-    // Seed from cache synchronously — repeat visits show the profile
-    // instantly with no spinner.
+    // Seed from cache so repeat visits show the profile with no spinner.
     final cachedUser = _redditService.peekUserInfo(widget.username);
     if (cachedUser != null) {
       _user = cachedUser;
@@ -46,13 +44,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) {
-    return _redditService.getUserPosts(widget.username, after: after);
-  }
-
-  @override
-  List<RedditPost>? peekCachedPosts() =>
-      _redditService.peekUserPosts(widget.username);
+  PostFeed get feed => UserFeed(widget.username);
 
   Future<void> _loadUserInfo() async {
     final user = await _redditService.getUserInfo(widget.username);
@@ -65,8 +57,6 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
 
   @override
   Widget build(BuildContext context) {
-    final colors = ThemeHelper(context);
-
     return Scaffold(
       appBar: AppBar(
         title: GestureDetector(
@@ -77,13 +67,13 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
         actions: [
           IconButton(
             icon: Icon(
-              context.watch<ThemeProvider>().isFavoriteUser(widget.username)
+              context.watch<SettingsProvider>().isFavoriteUser(widget.username)
                   ? Icons.star_rounded
                   : Icons.star_outline_rounded,
             ),
             onPressed: () {
               Haptics.lightImpact();
-              context.read<ThemeProvider>().toggleFavoriteUser(
+              context.read<SettingsProvider>().toggleFavoriteUser(
                 widget.username,
               );
             },
@@ -94,36 +84,18 @@ class _UserProfileScreenState extends State<UserProfileScreen> with PostListMixi
       ),
       body: _isLoadingUser
           ? LoadingWidgets.loadingIndicator(context)
-          : RefreshIndicator(
-              onRefresh: onRefresh,
-              color: colors.accentColor,
-              child: ListView(
-                controller: scrollController,
-                cacheExtent: MediaQuery.of(context).size.height * 0.5,
-                children: [
-                  // User info header
-                  if (_user != null) _buildUserInfo(),
-
-                  const SizedBox(height: AppTheme.spacing4),
-
-                  // User posts
-                  if (isLoading && posts.isEmpty)
-                    LoadingWidgets.loadingIndicatorPadded(context)
-                  else if (posts.isEmpty)
-                    LoadingWidgets.emptyState(context, 'No posts yet')
-                  else
-                    ...posts.map(
-                      (post) => PostCard(
-                        key: ValueKey(post.id),
-                        post: post,
-                        onTap: () => NavigationHelper.navigateToPost(context, post),
-                      ),
-                    ),
-
-                  if (isLoading && posts.isNotEmpty)
-                    LoadingWidgets.loadingIndicatorPadded(context),
-                ],
+          : PostListView(
+              header: Padding(
+                padding: const EdgeInsets.only(bottom: AppTheme.spacing4),
+                child: _buildUserInfo(),
               ),
+              posts: posts,
+              isLoading: isLoading,
+              hasMore: hasMore,
+              errorMessage: loadError,
+              scrollController: scrollController,
+              onRefresh: loadPosts,
+              onRetry: loadPosts,
             ),
     );
   }

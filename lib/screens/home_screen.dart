@@ -1,15 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import '../models/reddit_post.dart';
-import '../services/reddit_service.dart';
+import '../models/post_feed.dart';
 import '../services/auth_service.dart';
+import '../services/settings_provider.dart';
 import '../widgets/modal_widgets.dart';
 import '../widgets/sort_dialogs.dart';
 import '../widgets/post_list_mixin.dart';
 import '../widgets/post_list_view.dart';
 import '../theme/app_theme.dart';
-import '../theme/theme_provider.dart';
-import '../constants/sort_constants.dart';
 import 'subreddit_search_screen.dart';
 import 'settings_screen.dart';
 
@@ -21,10 +19,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with PostListMixin {
-  final RedditService _redditService = RedditService();
-
-  String _currentSort = SortConstants.hot;
-  String? _currentTopTime;
   String? _currentSubreddit;
 
   @override
@@ -48,7 +42,7 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   }
 
   Future<void> _bootstrap() async {
-    await context.read<ThemeProvider>().ready;
+    await context.read<SettingsProvider>().ready;
     if (!mounted) return;
     _loadPostsFromDefault();
   }
@@ -59,10 +53,9 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
 
   void _loadPostsFromDefault() {
     setState(
-      () => _setSubreddit(context.read<ThemeProvider>().defaultSubreddit),
+      () => _setSubreddit(context.read<SettingsProvider>().defaultSubreddit),
     );
-    // Seed from cache synchronously — before loadPosts fires — so a warm
-    // hit means no spinner on bootstrap.
+    // Seed from cache before loading so a warm start shows no spinner.
     final cached = peekCachedPosts();
     if (cached != null && cached.isNotEmpty) {
       setState(() => posts = cached);
@@ -71,75 +64,14 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) async {
-    final provider = context.read<ThemeProvider>();
-    if (_currentSubreddit == 'following') {
-      if (after != null) return const [];
-      return _redditService.getFollowingPosts(
-        provider.favoriteUsers.toList(),
-        sort: _currentSort,
-        topTime: _currentTopTime,
-      );
-    }
-    if (_currentSubreddit == 'personal') {
-      return _redditService.getPersonalPosts(
-        provider.favoriteSubreddits.toList(),
-        sort: _currentSort,
-        after: after,
-        topTime: _currentTopTime,
-      );
-    }
-    if (_currentSubreddit != null) {
-      return _redditService.getSubredditPosts(
-        _currentSubreddit!,
-        sort: _currentSort,
-        after: after,
-        topTime: _currentTopTime,
-      );
-    }
-    return _redditService.getFrontpage(
-      sort: _currentSort,
-      after: after,
-      topTime: _currentTopTime,
-    );
-  }
-
-  @override
-  List<RedditPost>? peekCachedPosts() {
-    final provider = context.read<ThemeProvider>();
-    if (_currentSubreddit == 'following') {
-      return _redditService.peekFollowingPosts(
-        provider.favoriteUsers.toList(),
-        sort: _currentSort,
-        topTime: _currentTopTime,
-      );
-    }
-    if (_currentSubreddit == 'personal') {
-      return _redditService.peekPersonalPosts(
-        provider.favoriteSubreddits.toList(),
-        sort: _currentSort,
-        topTime: _currentTopTime,
-      );
-    }
-    if (_currentSubreddit != null) {
-      return _redditService.peekSubredditPosts(
-        _currentSubreddit!,
-        sort: _currentSort,
-        topTime: _currentTopTime,
-      );
-    }
-    return _redditService.peekFrontpage(
-      sort: _currentSort,
-      topTime: _currentTopTime,
-    );
-  }
-
-  void _changeSort(String sort, {String? topTime}) {
-    setState(() {
-      _currentSort = sort;
-      _currentTopTime = topTime;
-    });
-    clearAndReload();
+  PostFeed get feed {
+    final settings = context.read<SettingsProvider>();
+    return switch (_currentSubreddit) {
+      null => const FrontpageFeed(),
+      'personal' => SubredditsFeed(settings.favoriteSubreddits.toList()),
+      'following' => FollowingFeed(settings.favoriteUsers.toList()),
+      final name => SubredditsFeed([name]),
+    };
   }
 
   void _showSubredditSearch() {
@@ -154,7 +86,7 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
       context,
       MaterialPageRoute(builder: (context) => const SettingsScreen()),
     ).then((_) {
-      // Reload if default subreddit was changed
+      // Settings may have changed the default feed.
       _loadPostsFromDefault();
     });
   }
@@ -162,9 +94,9 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
   void _showDefaultSubredditDialog() {
     ModalWidgets.showDefaultSubredditModal(
       context: context,
-      currentDefault: context.read<ThemeProvider>().defaultSubreddit,
+      currentDefault: context.read<SettingsProvider>().defaultSubreddit,
       onSelected: (value) async {
-        await context.read<ThemeProvider>().setDefaultSubreddit(value);
+        await context.read<SettingsProvider>().setDefaultSubreddit(value);
         if (!mounted) return;
         setState(() => _setSubreddit(value));
         clearAndReload();
@@ -196,9 +128,9 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
             icon: const Icon(Icons.tune_rounded),
             onPressed: () => SortDialogs.showPostSortModal(
               context: context,
-              currentSort: _currentSort,
-              currentTopTime: _currentTopTime,
-              onSortChanged: _changeSort,
+              currentSort: sort,
+              currentTopTime: topTime,
+              onSortChanged: changeSort,
             ),
             tooltip: 'Sort posts',
           ),
@@ -216,8 +148,8 @@ class _HomeScreenState extends State<HomeScreen> with PostListMixin {
         hasMore: hasMore,
         errorMessage: loadError,
         scrollController: scrollController,
-        onRefresh: onRefresh,
-        onRetry: retry,
+        onRefresh: loadPosts,
+        onRetry: loadPosts,
       ),
     );
   }

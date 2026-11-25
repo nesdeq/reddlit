@@ -1,14 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/format_utils.dart';
+import '../utils/reddit_link.dart';
 import '../utils/url_utils.dart';
 import '../services/auth_service.dart';
 
 /// Content display widgets (images, links, metadata, engagement)
 class ContentWidgets {
-  const ContentWidgets._(); // Private constructor to prevent instantiation
+  const ContentWidgets._();
+
   /// External link preview widget with favicon and domain
   static Widget externalLinkPreview({
     required BuildContext context,
@@ -26,6 +28,65 @@ class ContentWidgets {
       },
     ).toString();
 
+    return _linkCard(
+      colors,
+      leading: ClipRRect(
+        borderRadius: BorderRadius.circular(4),
+        child: CachedNetworkImage(
+          imageUrl: faviconUrl,
+          httpHeaders: AuthService.instance.mediaHeaders(faviconUrl),
+          width: 20,
+          height: 20,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Container(
+            width: 20,
+            height: 20,
+            color: colors.dividerColor,
+          ),
+          errorWidget: (context, url, error) => Icon(
+            Icons.language_rounded,
+            size: 20,
+            color: colors.textTertiary,
+          ),
+        ),
+      ),
+      label: domain,
+      trailing: Icons.open_in_new_rounded,
+      onTap: onTap,
+    );
+  }
+
+  /// Card for a post that links to another reddit thread, subreddit or user; opens in the app.
+  static Widget redditLinkPreview({
+    required BuildContext context,
+    required RedditLink link,
+    required VoidCallback onTap,
+  }) {
+    final colors = ThemeHelper(context);
+    return _linkCard(
+      colors,
+      leading: Icon(Icons.forum_rounded, size: 20, color: colors.accentColor),
+      label: switch (link) {
+        ThreadLink(:final subreddit, :final commentId) => [
+          if (subreddit != null) 'r/$subreddit',
+          commentId == null ? 'post' : 'comment thread',
+        ].join(' · '),
+        SubredditLink(:final name) => 'r/$name',
+        UserLink(:final name) => 'u/$name',
+        ShareLink() => 'Shared reddit link',
+      },
+      trailing: Icons.chevron_right_rounded,
+      onTap: onTap,
+    );
+  }
+
+  static Widget _linkCard(
+    ThemeHelper colors, {
+    required Widget leading,
+    required String label,
+    required IconData trailing,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -43,32 +104,11 @@ class ContentWidgets {
         ),
         child: Row(
           children: [
-            // Favicon
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: CachedNetworkImage(
-                imageUrl: faviconUrl,
-                httpHeaders: AuthService.instance.mediaHeaders(faviconUrl),
-                width: 20,
-                height: 20,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => Container(
-                  width: 20,
-                  height: 20,
-                  color: colors.dividerColor,
-                ),
-                errorWidget: (context, url, error) => Icon(
-                  Icons.language_rounded,
-                  size: 20,
-                  color: colors.textTertiary,
-                ),
-              ),
-            ),
+            leading,
             const SizedBox(width: AppTheme.spacing2),
-            // Domain
             Expanded(
               child: Text(
-                domain,
+                label,
                 style: colors.theme.textTheme.bodySmall?.copyWith(
                   color: colors.textSecondary,
                   fontWeight: FontWeight.w500,
@@ -78,12 +118,7 @@ class ContentWidgets {
               ),
             ),
             const SizedBox(width: AppTheme.spacing2),
-            // External link icon
-            Icon(
-              Icons.open_in_new_rounded,
-              size: 14,
-              color: colors.textTertiary,
-            ),
+            Icon(trailing, size: 14, color: colors.textTertiary),
           ],
         ),
       ),

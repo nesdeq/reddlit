@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
+import '../models/comments_page.dart';
 import '../models/reddit_post.dart';
 import '../models/reddit_comment.dart';
 import '../services/reddit_service.dart';
@@ -12,14 +13,23 @@ import '../widgets/article_summary_widget.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
 import '../utils/format_utils.dart';
+import '../utils/reddit_link.dart';
 import '../utils/url_utils.dart';
 import '../utils/navigation_helper.dart';
 import '../constants/sort_constants.dart';
 
 class PostDetailScreen extends StatefulWidget {
-  final RedditPost post;
+  /// The listing's post, shown until its page loads.
+  final RedditPost? post;
 
-  const PostDetailScreen({super.key, required this.post});
+  /// The thread to open when no listing post is at hand.
+  final ThreadLink? link;
+
+  const PostDetailScreen({super.key, required RedditPost this.post})
+    : link = null;
+
+  const PostDetailScreen.fromLink(ThreadLink this.link, {super.key})
+    : post = null;
 
   @override
   State<PostDetailScreen> createState() => _PostDetailScreenState();
@@ -29,21 +39,33 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   final RedditService _redditService = RedditService();
   final ScrollController _scrollController = ScrollController();
 
-  /// The post we render. Starts as the lean listing post, then upgrades to the
-  /// post-page version (selftext + gallery) once comments load.
-  late RedditPost _post = widget.post;
+  /// The listing post at first, then the page's own version with selftext and gallery.
+  late RedditPost? _post = widget.post;
+  late String? _permalink = widget.post?.permalink ?? widget.link?.path;
+  late String? _context = widget.link?.context;
+
+  /// Set while one comment's thread is shown instead of the whole post.
+  late String? _focusedCommentId = widget.link?.commentId;
+
   List<RedditComment> _tree = const [];
   bool _isLoading = false;
+  bool _loadFailed = false;
   String _commentSort = SortConstants.confidence;
   int _loadToken = 0;
+
+  String get _subreddit =>
+      widget.post?.subreddit ?? widget.link?.subreddit ?? '';
+  String get _postId => widget.post?.id ?? widget.link!.postId;
 
   @override
   void initState() {
     super.initState();
     final cached = _redditService.peekComments(
-      widget.post.subreddit,
-      widget.post.id,
+      _subreddit,
+      _postId,
       sort: _commentSort,
+      permalink: _permalink,
+      context: _context,
     );
     if (cached != null) {
       _post = cached.post ?? widget.post;
@@ -69,13 +91,17 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
   Future<void> _loadComments() async {
     final token = ++_loadToken;
-    setState(() => _isLoading = _tree.isEmpty);
+    setState(() {
+      _isLoading = _tree.isEmpty;
+      _loadFailed = false;
+    });
     try {
       final page = await _redditService.getComments(
-        widget.post.subreddit,
-        widget.post.id,
+        _subreddit,
+        _postId,
         sort: _commentSort,
-        permalink: widget.post.permalink,
+        permalink: _permalink,
+        context: _context,
       );
       if (!mounted || token != _loadToken) return;
       setState(() {
@@ -85,13 +111,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       });
     } catch (_) {
       if (!mounted || token != _loadToken) return;
-      setState(() => _isLoading = false);
+      setState(() {
+        _isLoading = false;
+        _loadFailed = true;
+      });
     }
   }
 
   void _changeCommentSort(String sort) {
     setState(() {
       _commentSort = sort;
+      _tree = const [];
+    });
+    _loadComments();
+  }
+
+  void _showAllComments() {
+    setState(() {
+      _permalink = _post?.permalink ?? '/comments/$_postId/';
+      _context = null;
+      _focusedCommentId = null;
       _tree = const [];
     });
     _loadComments();
@@ -106,14 +145,16 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
       parentFullname: placeholder.parentId ?? '',
       sort: _commentSort,
     );
-    if (!mounted || token != _loadToken) return;
+    if (fetched == null || !mounted || token != _loadToken) return;
     final merged = _spliceMore(_tree, placeholder, fetched);
     setState(() => _tree = merged);
     _redditService.cacheExpandedComments(
-      widget.post.subreddit,
-      widget.post.id,
+      _subreddit,
+      _postId,
       _commentSort,
       CommentsPage(post: _post, comments: merged),
+      permalink: _permalink,
+      context: _context,
     );
   }
 
@@ -202,7 +243,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           child: const Text('Post'),
         ),
         actions: [
-          if (UrlUtils.canSummarize(post.url))
+          if (post != null && UrlUtils.canSummarize(post.url))
             IconButton(
               icon: const Icon(Icons.auto_awesome_rounded),
               onPressed: () => ArticleSummaryWidget.showSummary(
@@ -230,51 +271,73 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
         child: ListView(
           controller: _scrollController,
           children: [
-            Container(
-              color: colors.surfaceColor,
-              padding: const EdgeInsets.all(AppTheme.spacing4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ContentWidgets.postMetadata(
-                    context: context,
-                    subreddit: post.subreddit,
-                    author: post.author,
-                    timeAgo: FormatUtils.formatTime(post.created),
-                    onSubredditTap: () => NavigationHelper.navigateToSubreddit(
-                      context,
-                      post.subreddit,
+            if (post != null) ...[
+              Container(
+                color: colors.surfaceColor,
+                padding: const EdgeInsets.all(AppTheme.spacing4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ContentWidgets.postMetadata(
+                      context: context,
+                      subreddit: post.subreddit,
+                      author: post.author,
+                      timeAgo: FormatUtils.formatTime(post.created),
+                      onSubredditTap: () =>
+                          NavigationHelper.navigateToSubreddit(
+                            context,
+                            post.subreddit,
+                          ),
+                      onAuthorTap: () => NavigationHelper.navigateToUser(
+                        context,
+                        post.author,
+                      ),
                     ),
-                    onAuthorTap: () => NavigationHelper.navigateToUser(
-                      context,
-                      post.author,
+                    const SizedBox(height: AppTheme.spacing3),
+                    Text(
+                      post.title,
+                      style: colors.theme.textTheme.displayMedium,
                     ),
-                  ),
-                  const SizedBox(height: AppTheme.spacing3),
-                  Text(
-                    post.title,
-                    style: colors.theme.textTheme.displayMedium,
-                  ),
-                  const SizedBox(height: AppTheme.spacing4),
-                  ContentPreview(post: post, isCompact: false),
-                  if (post.selftext != null && post.selftext!.isNotEmpty) ...[
                     const SizedBox(height: AppTheme.spacing4),
-                    CommentContent(
-                      content: post.selftext!,
-                      textStyle: colors.theme.textTheme.bodyLarge,
+                    ContentPreview(post: post, isCompact: false),
+                    if (post.selftext != null && post.selftext!.isNotEmpty) ...[
+                      const SizedBox(height: AppTheme.spacing4),
+                      CommentContent(
+                        content: post.selftext!,
+                        textStyle: colors.theme.textTheme.bodyLarge,
+                      ),
+                    ],
+                    const SizedBox(height: AppTheme.spacing4),
+                    ContentWidgets.engagementMetrics(
+                      context: context,
+                      score: post.score,
+                      commentCount: post.numComments,
+                      iconSize: 18,
                     ),
                   ],
-                  const SizedBox(height: AppTheme.spacing4),
-                  ContentWidgets.engagementMetrics(
-                    context: context,
-                    score: post.score,
-                    commentCount: post.numComments,
-                    iconSize: 18,
-                  ),
-                ],
+                ),
               ),
-            ),
-            const SizedBox(height: AppTheme.spacing4),
+              const SizedBox(height: AppTheme.spacing4),
+            ],
+
+            if (_focusedCommentId != null && tree.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(left: AppTheme.spacing4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Single comment thread',
+                        style: colors.theme.textTheme.labelMedium,
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: _showAllComments,
+                      child: const Text('View all comments'),
+                    ),
+                  ],
+                ),
+              ),
 
             if (tree.isNotEmpty)
               Padding(
@@ -294,19 +357,19 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           color: colors.textPrimary,
                         ),
                       ),
-                      WidgetSpan(
-                        alignment: PlaceholderAlignment.middle,
-                        child: ContentWidgets.bullet(colors),
-                      ),
-                      TextSpan(
-                        text: FormatUtils.formatNumber(
-                          post.numComments,
+                      if (post != null) ...[
+                        WidgetSpan(
+                          alignment: PlaceholderAlignment.middle,
+                          child: ContentWidgets.bullet(colors),
                         ),
-                        style: colors.theme.textTheme.titleMedium?.copyWith(
-                          color: colors.textTertiary,
-                          fontWeight: FontWeight.w500,
+                        TextSpan(
+                          text: FormatUtils.formatNumber(post.numComments),
+                          style: colors.theme.textTheme.titleMedium?.copyWith(
+                            color: colors.textTertiary,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -314,6 +377,12 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
 
             if (_isLoading && tree.isEmpty)
               LoadingWidgets.loadingIndicatorPadded(context)
+            else if (_loadFailed && tree.isEmpty)
+              LoadingWidgets.errorState(
+                context,
+                'Failed to load comments.',
+                _loadComments,
+              )
             else if (tree.isEmpty)
               LoadingWidgets.emptyState(context, 'No comments yet')
             else
@@ -321,6 +390,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                 (comment) => CommentTile(
                   key: ValueKey(comment.id),
                   comment: comment,
+                  focusedId: _focusedCommentId,
                   onAuthorTap: (username) =>
                       NavigationHelper.navigateToUser(context, username),
                   onLoadMore: _onMoreTap,

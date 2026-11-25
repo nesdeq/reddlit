@@ -1,10 +1,9 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:http/http.dart' as http;
 import '../utils/haptics.dart';
+import 'article_summary_service.dart';
 
 const _kApiKeyStorage = 'openai_api_key';
 const _kApiKeyValidPref = 'openai_api_key_valid';
@@ -15,7 +14,8 @@ const _kFavoriteUsersPref = 'favorite_users';
 const _kThemeModePref = 'theme_mode';
 const _kHapticsPref = 'haptics_enabled';
 
-class ThemeProvider extends ChangeNotifier {
+/// On-device user settings: theme, haptics, default feed, favorites, and summaries.
+class SettingsProvider extends ChangeNotifier {
   static const _secureStorage = FlutterSecureStorage();
 
   ThemeMode _themeMode = ThemeMode.system;
@@ -30,7 +30,7 @@ class ThemeProvider extends ChangeNotifier {
 
   final Completer<void> _readyCompleter = Completer<void>();
 
-  ThemeProvider() {
+  SettingsProvider() {
     _loadPreferences();
   }
 
@@ -74,14 +74,13 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Read API key from secure storage, migrating from legacy plaintext prefs
-  /// on first run if present.
+  /// API key from secure storage, migrating a legacy plaintext prefs copy on first run.
   Future<String> _loadApiKey() async {
     try {
       final secureValue = await _secureStorage.read(key: _kApiKeyStorage);
       if (secureValue != null && secureValue.isNotEmpty) return secureValue;
     } catch (_) {
-      // Secure storage unavailable (e.g. platform issue) — fall back to prefs.
+      // Secure storage unavailable: fall back to the prefs copy.
     }
     final legacy = _prefs?.getString(_kApiKeyStorage) ?? '';
     if (legacy.isNotEmpty) {
@@ -89,7 +88,7 @@ class ThemeProvider extends ChangeNotifier {
         await _secureStorage.write(key: _kApiKeyStorage, value: legacy);
         await _prefs?.remove(_kApiKeyStorage);
       } catch (_) {
-        // Migration failed — keep legacy value usable but don't crash.
+        // Migration failed: the legacy value stays usable.
       }
     }
     return legacy;
@@ -140,9 +139,7 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Returns null on success, or an error message if the secure write failed.
-  /// The in-memory value is always updated so validation can still proceed,
-  /// but the caller should warn the user that the key won't persist.
+  /// Null on success; an error when the secure write failed (the key still works in memory).
   Future<String?> setOpenAiApiKey(String key) async {
     _openAiApiKey = key;
     String? error;
@@ -153,7 +150,7 @@ class ThemeProvider extends ChangeNotifier {
         await _secureStorage.write(key: _kApiKeyStorage, value: key);
       }
     } catch (e) {
-      error = 'Secure storage unavailable — key held in memory only: $e';
+      error = 'Secure storage unavailable; key held in memory only: $e';
     }
     await _setApiKeyValid(false);
     return error;
@@ -165,30 +162,12 @@ class ThemeProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Validate OpenAI API key by making a test request.
-  /// Returns error message if invalid, null if valid.
+  /// Checks [key] with OpenAI and records the verdict; null when valid, else the reason.
   Future<String?> validateApiKey(String key) async {
     if (key.isEmpty) return 'API key cannot be empty';
-
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.openai.com/v1/models'),
-        headers: {'Authorization': 'Bearer $key'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        await _setApiKeyValid(true);
-        return null;
-      }
-      if (response.statusCode == 401) {
-        await _setApiKeyValid(false);
-        return 'Invalid API key';
-      }
-      final body = json.decode(response.body);
-      return body['error']?['message'] ?? 'Unknown error';
-    } catch (e) {
-      return 'Connection error: $e';
-    }
+    final (:valid, :error) = await ArticleSummaryService().checkApiKey(key);
+    if (valid != null) await _setApiKeyValid(valid);
+    return error;
   }
 
   Future<void> setSummaryLanguage(String language) async {

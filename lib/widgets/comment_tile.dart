@@ -1,5 +1,5 @@
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../models/reddit_comment.dart';
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
@@ -11,12 +11,20 @@ import 'content_widgets.dart';
 
 class CommentTile extends StatefulWidget {
   final RedditComment comment;
+
+  /// The comment a link pointed at: highlighted, and never hidden by auto-collapse.
+  final String? focusedId;
+
+  /// Author of the comment this one answers, shown where indentation has stopped.
+  final String? parentAuthor;
   final ValueChanged<String>? onAuthorTap;
-  final ValueChanged<RedditComment>? onLoadMore;
+  final Future<void> Function(RedditComment placeholder)? onLoadMore;
 
   const CommentTile({
     super.key,
     required this.comment,
+    this.focusedId,
+    this.parentAuthor,
     this.onAuthorTap,
     this.onLoadMore,
   });
@@ -29,16 +37,16 @@ class _CommentTileState extends State<CommentTile> {
   bool _isCollapsed = false;
   bool _loadingMore = false;
 
-  late final int _totalReplies = _countTotalReplies(widget.comment);
-
   late final TapGestureRecognizer _authorTap = TapGestureRecognizer()
     ..onTap = () => widget.onAuthorTap?.call(widget.comment.author);
 
   @override
   void initState() {
     super.initState();
+    final focusedId = widget.focusedId;
     _isCollapsed =
-        widget.comment.depth >= AppConstants.commentAutoCollapseDepth;
+        widget.comment.depth >= AppConstants.commentAutoCollapseDepth &&
+        !(focusedId != null && widget.comment.contains(focusedId));
   }
 
   @override
@@ -52,57 +60,63 @@ class _CommentTileState extends State<CommentTile> {
     setState(() => _isCollapsed = !_isCollapsed);
   }
 
-  void _handleLoadMore() {
-    if (_loadingMore || widget.onLoadMore == null) return;
+  Future<void> _handleLoadMore() async {
+    final onLoadMore = widget.onLoadMore;
+    if (_loadingMore || onLoadMore == null) return;
     Haptics.selectionClick();
     setState(() => _loadingMore = true);
-    widget.onLoadMore!(widget.comment);
+    try {
+      await onLoadMore(widget.comment);
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
     final comment = widget.comment;
+    final child = comment.isMorePlaceholder
+        ? _buildMoreTile(colors)
+        : _buildComment(colors);
 
-    final shouldIndent = comment.depth <= AppConstants.commentMaxIndentDepth;
-    final indentation = shouldIndent
-        ? comment.depth * AppConstants.commentIndentStep
-        : AppConstants.commentMaxIndentDepth * AppConstants.commentIndentStep;
-
-    final threadColor = colors.dividerColor.withValues(
-      alpha: AppConstants.threadLineOpacity,
-    );
-
-    final indented = Container(
-      margin: EdgeInsets.only(
-        left: indentation,
-        top: comment.depth == 0 ? AppTheme.spacing1 : 0,
-      ),
-      decoration: BoxDecoration(
-        border: comment.depth > 0
-            ? Border(
-                left: BorderSide(
-                  color: threadColor,
-                  width: AppConstants.threadLineWidth,
-                ),
-              )
-            : null,
-      ),
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          comment.depth > 0 ? AppTheme.spacing3 : AppTheme.spacing4,
-          AppTheme.spacing2,
+    if (comment.depth == 0) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(
+          AppTheme.spacing4,
+          AppTheme.spacing3,
           AppTheme.spacing4,
           AppTheme.spacing2,
         ),
-        child: comment.isMorePlaceholder
-            ? _buildMoreTile(colors)
-            : _buildComment(colors),
+        child: child,
+      );
+    }
+    // Replies nest inside their parent, so each adds one step and the screen margin is never repeated.
+    if (!_indents) {
+      return Padding(
+        padding: const EdgeInsets.only(top: AppTheme.spacing2),
+        child: child,
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.only(top: AppTheme.spacing2),
+      padding: const EdgeInsets.only(
+        left: AppConstants.commentIndentStep - AppConstants.threadLineWidth,
       ),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+            color: colors.threadLineColor,
+            width: AppConstants.threadLineWidth,
+          ),
+        ),
+      ),
+      child: child,
     );
-
-    return indented;
   }
+
+  bool get _indents =>
+      widget.comment.depth <= AppConstants.commentMaxIndentDepth;
 
   Widget _buildMoreTile(ThemeHelper colors) {
     final count = widget.comment.replyCount;
@@ -144,48 +158,101 @@ class _CommentTileState extends State<CommentTile> {
 
   Widget _buildComment(ThemeHelper colors) {
     final comment = widget.comment;
-    return Column(
+    final parentAuthor = widget.parentAuthor;
+    final own = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: _toggleCollapse,
-          child: _buildHeader(colors),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (parentAuthor != null && !_indents)
+                _buildAnswers(colors, parentAuthor),
+              _buildHeader(colors),
+            ],
+          ),
         ),
-        AnimatedSize(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          alignment: Alignment.topLeft,
-          child: _isCollapsed
-              ? const SizedBox(width: double.infinity)
-              : Padding(
-                  padding: const EdgeInsets.only(top: AppTheme.spacing2),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CommentContent(content: comment.body),
-                      if (comment.replies.isNotEmpty) ...[
-                        const SizedBox(height: AppTheme.spacing1),
-                        ...comment.replies.map(
-                          (reply) => CommentTile(
-                            key: ValueKey(reply.id),
-                            comment: reply,
-                            onAuthorTap: widget.onAuthorTap,
-                            onLoadMore: widget.onLoadMore,
-                          ),
-                        ),
-                      ],
-                    ],
+        _collapsible(
+          Padding(
+            padding: const EdgeInsets.only(top: AppTheme.spacing2),
+            child: CommentContent(content: comment.body),
+          ),
+        ),
+      ],
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (comment.id == widget.focusedId)
+          Container(
+            padding: const EdgeInsets.all(AppTheme.spacing2),
+            decoration: BoxDecoration(
+              color: colors.accentSoftColor,
+              border: Border.all(color: colors.accentColor),
+              borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
+            ),
+            child: own,
+          )
+        else
+          own,
+        if (comment.replies.isNotEmpty)
+          _collapsible(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final reply in comment.replies)
+                  CommentTile(
+                    key: ValueKey(reply.id),
+                    comment: reply,
+                    focusedId: widget.focusedId,
+                    parentAuthor: comment.author,
+                    onAuthorTap: widget.onAuthorTap,
+                    onLoadMore: widget.onLoadMore,
                   ),
-                ),
-        ),
+              ],
+            ),
+          ),
       ],
     );
   }
 
+  Widget _collapsible(Widget child) => AnimatedSize(
+    duration: const Duration(milliseconds: 180),
+    curve: Curves.easeOutCubic,
+    alignment: Alignment.topLeft,
+    child: _isCollapsed ? const SizedBox(width: double.infinity) : child,
+  );
+
+  Widget _buildAnswers(ThemeHelper colors, String parentAuthor) => Padding(
+    padding: const EdgeInsets.only(bottom: AppTheme.spacing1),
+    child: Row(
+      children: [
+        Icon(
+          Icons.subdirectory_arrow_right_rounded,
+          size: 14,
+          color: colors.textTertiary,
+        ),
+        const SizedBox(width: AppTheme.spacing1),
+        Flexible(
+          child: Text(
+            'u/$parentAuthor',
+            style: colors.theme.textTheme.labelSmall?.copyWith(
+              color: colors.textTertiary,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    ),
+  );
+
   Widget _buildHeader(ThemeHelper colors) {
     final comment = widget.comment;
     final label = colors.theme.textTheme.labelSmall;
+    final hiddenReplies = _isCollapsed ? _countTotalReplies(comment) : 0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -224,7 +291,7 @@ class _CommentTileState extends State<CommentTile> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (_isCollapsed && _totalReplies > 0) ...[
+        if (hiddenReplies > 0) ...[
           const SizedBox(width: AppTheme.spacing2),
           Container(
             padding: const EdgeInsets.symmetric(
@@ -236,7 +303,7 @@ class _CommentTileState extends State<CommentTile> {
               borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
             ),
             child: Text(
-              '+$_totalReplies',
+              '+$hiddenReplies',
               style: label?.copyWith(
                 color: colors.textSecondary,
                 fontWeight: FontWeight.w600,

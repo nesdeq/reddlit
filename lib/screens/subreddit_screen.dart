@@ -1,14 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:provider/provider.dart';
-import '../models/reddit_post.dart';
-import '../services/reddit_service.dart';
+import '../models/post_feed.dart';
+import '../services/settings_provider.dart';
 import '../widgets/sort_dialogs.dart';
 import '../widgets/post_list_mixin.dart';
 import '../widgets/post_list_view.dart';
 import '../theme/app_theme.dart';
-import '../theme/theme_provider.dart';
 import '../utils/haptics.dart';
-import '../constants/sort_constants.dart';
 
 class SubredditScreen extends StatefulWidget {
   final String subreddit;
@@ -20,11 +18,6 @@ class SubredditScreen extends StatefulWidget {
 }
 
 class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
-  final RedditService _redditService = RedditService();
-
-  String _currentSort = SortConstants.hot;
-  String? _currentTopTime;
-
   @override
   void initState() {
     super.initState();
@@ -32,29 +25,7 @@ class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
   }
 
   @override
-  Future<List<RedditPost>> loadPostsImplementation({String? after}) {
-    return _redditService.getSubredditPosts(
-      widget.subreddit,
-      sort: _currentSort,
-      after: after,
-      topTime: _currentTopTime,
-    );
-  }
-
-  @override
-  List<RedditPost>? peekCachedPosts() => _redditService.peekSubredditPosts(
-    widget.subreddit,
-    sort: _currentSort,
-    topTime: _currentTopTime,
-  );
-
-  void _changeSort(String sort, {String? topTime}) {
-    setState(() {
-      _currentSort = sort;
-      _currentTopTime = topTime;
-    });
-    clearAndReload();
-  }
+  PostFeed get feed => SubredditsFeed([widget.subreddit]);
 
   @override
   Widget build(BuildContext context) {
@@ -68,13 +39,13 @@ class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
         actions: [
           IconButton(
             icon: Icon(
-              context.watch<ThemeProvider>().isFavorite(widget.subreddit)
+              context.watch<SettingsProvider>().isFavorite(widget.subreddit)
                   ? Icons.star_rounded
                   : Icons.star_outline_rounded,
             ),
             onPressed: () {
               Haptics.lightImpact();
-              context.read<ThemeProvider>().toggleFavorite(widget.subreddit);
+              context.read<SettingsProvider>().toggleFavorite(widget.subreddit);
             },
             tooltip: 'Favorite',
           ),
@@ -82,9 +53,9 @@ class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
             icon: const Icon(Icons.tune_rounded),
             onPressed: () => SortDialogs.showPostSortModal(
               context: context,
-              currentSort: _currentSort,
-              currentTopTime: _currentTopTime,
-              onSortChanged: _changeSort,
+              currentSort: sort,
+              currentTopTime: topTime,
+              onSortChanged: changeSort,
             ),
           ),
           const SizedBox(width: AppTheme.spacing1),
@@ -96,8 +67,8 @@ class _SubredditScreenState extends State<SubredditScreen> with PostListMixin {
         hasMore: hasMore,
         errorMessage: loadError,
         scrollController: scrollController,
-        onRefresh: onRefresh,
-        onRetry: retry,
+        onRefresh: loadPosts,
+        onRetry: loadPosts,
       ),
     );
   }

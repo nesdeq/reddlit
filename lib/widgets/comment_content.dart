@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:material_ui/material_ui.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:markdown/markdown.dart' as md;
 import '../theme/app_theme.dart';
 import '../theme/theme_helper.dart';
+import '../utils/navigation_helper.dart';
 import '../utils/url_utils.dart';
 import '../constants/app_constants.dart';
 import '../services/auth_service.dart';
@@ -21,14 +22,16 @@ class CommentContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = ThemeHelper(context);
-    final base = textStyle ?? colors.theme.textTheme.bodyMedium;
+    final base = AppTheme.reading(
+      textStyle ?? colors.theme.textTheme.bodyMedium,
+    );
 
     return MarkdownBody(
       data: content,
       selectable: true,
       onTapLink: (text, href, title) {
         if (href != null) {
-          UrlUtils.openUrl(href);
+          NavigationHelper.openUrl(context, href);
         }
       },
       builders: {
@@ -39,7 +42,7 @@ class CommentContent extends StatelessWidget {
         h1: colors.theme.textTheme.displayMedium,
         h2: colors.theme.textTheme.titleLarge,
         h3: colors.theme.textTheme.titleMedium,
-        a: base?.copyWith(
+        a: base.copyWith(
           color: colors.accentColor,
           decoration: TextDecoration.underline,
         ),
@@ -53,7 +56,7 @@ class CommentContent extends StatelessWidget {
           color: colors.dividerColor.withValues(alpha: AppConstants.codeBackgroundOpacity),
           borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
         ),
-        blockquote: base?.copyWith(
+        blockquote: base.copyWith(
           color: colors.textSecondary,
           fontStyle: FontStyle.italic,
         ),
@@ -62,13 +65,13 @@ class CommentContent extends StatelessWidget {
             left: BorderSide(color: colors.dividerColor, width: 3),
           ),
         ),
-        listBullet: base?.copyWith(
+        listBullet: base.copyWith(
           color: colors.textSecondary,
         ),
-        em: base?.copyWith(
+        em: base.copyWith(
           fontStyle: FontStyle.italic,
         ),
-        strong: base?.copyWith(
+        strong: base.copyWith(
           fontWeight: FontWeight.w600,
         ),
         blockSpacing: AppTheme.spacing2,

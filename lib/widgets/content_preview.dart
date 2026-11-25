@@ -1,8 +1,9 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../models/reddit_post.dart';
 import '../theme/app_theme.dart';
+import '../utils/navigation_helper.dart';
 import '../utils/url_utils.dart';
 import '../constants/app_constants.dart';
 import 'reddit_video_player.dart';
@@ -11,8 +12,7 @@ import 'gallery_viewer.dart';
 import 'content_widgets.dart';
 import 'loading_widgets.dart';
 
-/// Content preview for a post, used in both feed cards and detail view.
-/// [isCompact] controls sizing: true for feed (16:9, thumbnails), false for detail (flexible height).
+/// A post's media: compact in feed cards, flexible height in the detail view.
 class ContentPreview extends StatelessWidget {
   final RedditPost post;
   final bool isCompact;
@@ -55,6 +55,14 @@ class ContentPreview extends StatelessWidget {
           onTap: () => UrlUtils.openUrl(post.url!),
         );
 
+      case PostContentType.redditLink:
+        final link = post.redditLink!;
+        return ContentWidgets.redditLinkPreview(
+          context: context,
+          link: link,
+          onTap: () => NavigationHelper.openLink(context, link),
+        );
+
       case PostContentType.text:
         return const SizedBox.shrink();
 
@@ -72,14 +80,17 @@ class ContentPreview extends StatelessWidget {
       return ContentWidgets.cachedImage(
         context: context,
         imageUrl: post.imageUrl,
-        aspectRatio: 16 / 9,
+        aspectRatio: AppConstants.feedMediaAspectRatio,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       );
     }
 
     if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
     return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 200, maxHeight: 600),
+      constraints: const BoxConstraints(
+        minHeight: AppConstants.detailMediaMinHeight,
+        maxHeight: AppConstants.detailMediaMaxHeight,
+      ),
       child: ContentWidgets.cachedImage(
         context: context,
         imageUrl: post.url!,
@@ -128,7 +139,7 @@ class ContentPreview extends StatelessWidget {
         ContentWidgets.cachedImage(
           context: context,
           imageUrl: imageUrl,
-          aspectRatio: 16 / 9,
+          aspectRatio: AppConstants.feedMediaAspectRatio,
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         ),
         Container(

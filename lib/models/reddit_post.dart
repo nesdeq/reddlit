@@ -1,4 +1,5 @@
 import 'package:html/dom.dart';
+import '../utils/reddit_link.dart';
 import '../utils/url_utils.dart';
 import '../utils/format_utils.dart';
 import '../utils/html_to_markdown.dart';
@@ -9,6 +10,7 @@ enum PostContentType {
   gallery,
   video,
   externalLink,
+  redditLink,
   redditVideo,
   youtubeVideo,
 }
@@ -50,25 +52,20 @@ class RedditPost {
     this.galleryImages = const [],
   });
 
-  /// Parse a post from an old.reddit `div.thing` element.
-  ///
-  /// The listing thing is lean (metadata + thumbnail + video manifests). The
-  /// same thing on a post page additionally carries the selftext body and
-  /// gallery image set in its expando — [fromThing] extracts whatever is
-  /// present, so one parser serves both feed and detail.
+  /// Parse an old.reddit `div.thing`; only the post-page thing carries selftext and gallery images.
   factory RedditPost.fromThing(Element thing) {
     String? attr(String name) => thing.attributes['data-$name'];
 
     final fullname = attr('fullname') ?? '';
     final id = fullname.startsWith('t3_') ? fullname.substring(3) : fullname;
 
-    final dataUrl = _clean(attr('url'));
+    final dataUrl = UrlUtils.fromAttribute(attr('url'));
     final domain = attr('domain') ?? '';
-    final hls =
-        _clean(thing.querySelector('[data-hls-url]')?.attributes['data-hls-url']) ??
-            _redditVideoHls(domain, dataUrl);
-    final mpd =
-        _clean(thing.querySelector('[data-mpd-url]')?.attributes['data-mpd-url']);
+    final hls = UrlUtils.fromAttribute(
+            thing.querySelector('[data-hls-url]')?.attributes['data-hls-url']) ??
+        _redditVideoHls(domain, dataUrl);
+    final mpd = UrlUtils.fromAttribute(
+        thing.querySelector('[data-mpd-url]')?.attributes['data-mpd-url']);
     final isVideo = hls != null || mpd != null || domain == 'v.redd.it';
 
     return RedditPost(
@@ -91,19 +88,29 @@ class RedditPost {
     );
   }
 
-  /// YouTube ID is only needed when the post is rendered — compute lazily to
-  /// skip the regex for posts the user scrolls past without viewing.
+  /// Posts of a listing page's `#siteTable`, minus promoted ads and non-link things.
+  static List<RedditPost> parseListing(Document doc) {
+    final table = doc.getElementById('siteTable');
+    if (table == null) return const [];
+    return table.children
+        .where((e) => e.classes.contains('thing'))
+        .where((e) => (e.attributes['data-fullname'] ?? '').startsWith('t3_'))
+        .where((e) => e.attributes['data-promoted'] != 'true')
+        .map(RedditPost.fromThing)
+        .toList();
+  }
+
+  /// Computed lazily: posts scrolled past never run the regex.
   late final String? youtubeId = url == null
       ? null
       : UrlUtils.extractYoutubeId(url!);
 
-  /// old.reddit emits protocol-relative URLs (`//preview.redd.it/…`); normalize
-  /// to https and decode entity-escaped query separators.
-  static String? _clean(String? raw) {
-    if (raw == null || raw.isEmpty) return null;
-    var url = raw.replaceAll('&amp;', '&');
-    if (url.startsWith('//')) url = 'https:$url';
-    return url;
+  /// The other thread, subreddit or user this post links to; null when the URL is the post itself.
+  late final RedditLink? redditLink = _citedLink();
+
+  RedditLink? _citedLink() {
+    final link = url == null ? null : RedditLink.parse(url!);
+    return link is ThreadLink && link.postId == id ? null : link;
   }
 
   static String? _redditVideoHls(String domain, String? url) {
@@ -114,7 +121,7 @@ class RedditPost {
 
   static String? _extractThumbnail(Element thing) {
     final src = thing.querySelector('a.thumbnail img')?.attributes['src'];
-    return _clean(src);
+    return UrlUtils.fromAttribute(src);
   }
 
   /// Selftext lives in the post's own expando, present only on the post page.
@@ -133,7 +140,7 @@ class RedditPost {
     final seen = <String>{};
     final images = <String>[];
     void consider(String? raw) {
-      final url = _clean(raw);
+      final url = UrlUtils.fromAttribute(raw);
       if (url == null) return;
       if (!_galleryImagePattern.hasMatch(url)) return;
       final key = url.split('?').first;
@@ -176,16 +183,16 @@ class RedditPost {
 
   PostContentType get contentType {
     if (isGallery && galleryImages.isNotEmpty) return PostContentType.gallery;
-    // Check isVideo flag BEFORE youtube/image — prevents misclassification.
+    // isVideo is checked before youtube and image so a video post is never misclassified.
     if (isVideo) return PostContentType.redditVideo;
     if (youtubeId != null) return PostContentType.youtubeVideo;
     // Gallery cover in the feed (no images loaded yet) renders as an image.
     if (isGallery && (thumbnail?.isNotEmpty ?? false)) {
       return PostContentType.image;
     }
-    if (url == null || domain.startsWith('self.') || domain.contains('reddit.com')) {
-      return PostContentType.text;
-    }
+    if (url == null || isGallery) return PostContentType.text;
+    if (redditLink != null) return PostContentType.redditLink;
+    if (domain.startsWith('self.')) return PostContentType.text;
     if (UrlUtils.isImageUrl(url!)) return PostContentType.image;
     if (UrlUtils.isVideoUrl(url!)) return PostContentType.video;
     return PostContentType.externalLink;

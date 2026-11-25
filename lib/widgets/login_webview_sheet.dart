@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import '../services/auth_service.dart';
+import '../theme/app_theme.dart';
 
 class LoginWebViewSheet extends StatefulWidget {
   const LoginWebViewSheet({super.key});
@@ -53,7 +54,9 @@ class _LoginWebViewSheetState extends State<LoginWebViewSheet> {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+      borderRadius: const BorderRadius.vertical(
+        top: Radius.circular(AppTheme.radiusLarge),
+      ),
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Log in to Reddit'),

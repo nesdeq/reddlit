@@ -1,14 +1,13 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import '../theme/app_theme.dart';
 import '../constants/app_constants.dart';
 import 'content_widgets.dart';
 
-/// Jony Ive principle: Gesture-based, minimal UI
-/// Swipeable gallery with subtle navigation hints
+/// Swipeable post gallery with page arrows and a page counter.
 class GalleryViewer extends StatefulWidget {
   final List<String> images;
-  /// If true, constrains to 16:9 aspect ratio (for post cards).
-  /// If false, shows full images (for detail view).
+
+  /// Feed cards use the fixed feed aspect ratio; the detail view uses flexible height.
   final bool constrainAspectRatio;
 
   const GalleryViewer({
@@ -62,7 +61,6 @@ class _GalleryViewerState extends State<GalleryViewer> {
     }
 
     if (widget.images.length == 1) {
-      // Single image, no navigation needed
       return _wrapWithAspectRatio(
         ClipRRect(
           borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
@@ -76,7 +74,6 @@ class _GalleryViewerState extends State<GalleryViewer> {
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
         child: Stack(
           children: [
-            // Swipeable page view
             PageView.builder(
               controller: _pageController,
               itemCount: widget.images.length,
@@ -89,46 +86,40 @@ class _GalleryViewerState extends State<GalleryViewer> {
                 return _buildImage(widget.images[index]);
               },
             ),
-
-            // Navigation overlay - Jony Ive: Only show when needed
-            if (widget.images.length > 1) ...[
-              if (_currentPage > 0)
-                _navArrow(
-                  left: AppTheme.spacing2,
-                  icon: Icons.chevron_left_rounded,
-                  onTap: _previousPage,
+            if (_currentPage > 0)
+              _navArrow(
+                left: AppTheme.spacing2,
+                icon: Icons.chevron_left_rounded,
+                onTap: _previousPage,
+              ),
+            if (_currentPage < widget.images.length - 1)
+              _navArrow(
+                right: AppTheme.spacing2,
+                icon: Icons.chevron_right_rounded,
+                onTap: _nextPage,
+              ),
+            Positioned(
+              top: AppTheme.spacing3,
+              right: AppTheme.spacing3,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppTheme.spacing2,
+                  vertical: AppTheme.spacing1,
                 ),
-              if (_currentPage < widget.images.length - 1)
-                _navArrow(
-                  right: AppTheme.spacing2,
-                  icon: Icons.chevron_right_rounded,
-                  onTap: _nextPage,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: AppConstants.galleryIndicatorOpacity),
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
                 ),
-
-              // Page indicator (1/3, 2/3, etc.) - top right
-              Positioned(
-                top: AppTheme.spacing3,
-                right: AppTheme.spacing3,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppTheme.spacing2,
-                    vertical: AppTheme.spacing1,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: AppConstants.galleryIndicatorOpacity),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSmall),
-                  ),
-                  child: Text(
-                    '${_currentPage + 1}/${widget.images.length}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                child: Text(
+                  '${_currentPage + 1}/${widget.images.length}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ],
+            ),
           ],
         ),
       ),
@@ -164,28 +155,24 @@ class _GalleryViewerState extends State<GalleryViewer> {
     );
   }
 
-  /// Wrap child with appropriate sizing
   Widget _wrapWithAspectRatio(Widget child) {
     if (widget.constrainAspectRatio) {
-      // Main feed: fixed 16:9 for compact preview
       return AspectRatio(
-        aspectRatio: 16 / 9,
+        aspectRatio: AppConstants.feedMediaAspectRatio,
         child: child,
       );
     }
-    // Detail view: flexible height matching single image behavior
     return ConstrainedBox(
       constraints: const BoxConstraints(
-        minHeight: 200,
-        maxHeight: 600,
+        minHeight: AppConstants.detailMediaMinHeight,
+        maxHeight: AppConstants.detailMediaMaxHeight,
       ),
       child: child,
     );
   }
 
   Widget _buildImage(String url) {
-    // Always use cover to fill rounded corners cleanly.
-    // InteractiveViewer enables pinch-to-zoom + pan.
+    // Cover fills the rounded corners cleanly.
     return InteractiveViewer(
       minScale: 1.0,
       maxScale: 4.0,
