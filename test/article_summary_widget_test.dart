@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -79,6 +80,36 @@ void main() {
       expect(find.text('PAGE TWO'), findsOneWidget);
       expect(find.text('Summary Unavailable'), findsNothing);
     }, () => MockClient((_) => reply.future));
+  });
+
+  testWidgets('a summary shows its highlighted figures as bold, not asterisks',
+      (tester) async {
+    final article = Completer<http.Response>();
+    await http.runWithClient(() async {
+      await startSummary(tester, article);
+      article.complete(http.Response(
+        jsonEncode({
+          'data': {'content': 'Article text.'},
+        }),
+        200,
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('AI Summary'), findsOneWidget);
+      expect(find.text('Sales fell 42 % in a year.'), findsOneWidget);
+      expect(find.textContaining('**'), findsNothing);
+    }, () => MockClient((request) async {
+          if (request.url.host == 'r.jina.ai') return article.future;
+          return http.Response(
+            jsonEncode({
+              'choices': [
+                {
+                  'message': {'content': 'Sales fell **42 %** in a year.'},
+                },
+              ],
+            }),
+            200,
+          );
+        }));
   });
 
   testWidgets('a failed summary closes the loader and explains, page intact',

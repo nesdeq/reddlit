@@ -5,6 +5,7 @@ import '../theme/theme_helper.dart';
 import '../services/article_summary_service.dart';
 import '../services/settings_provider.dart';
 import '../screens/settings_screen.dart';
+import 'comment_content.dart';
 import 'modal_widgets.dart';
 
 class ArticleSummaryWidget {
@@ -131,9 +132,9 @@ class ArticleSummaryWidget {
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: AppTheme.spacing4),
-              SelectableText(
-                summary,
-                style: AppTheme.reading(colors.theme.textTheme.bodyLarge),
+              CommentContent(
+                content: summary,
+                textStyle: colors.theme.textTheme.bodyLarge,
               ),
               const SizedBox(height: AppTheme.spacing4),
               Container(
@@ -152,7 +153,7 @@ class ArticleSummaryWidget {
                     const SizedBox(width: AppTheme.spacing2),
                     Expanded(
                       child: Text(
-                        'AI-generated summary powered by GPT-5 Mini',
+                        'AI-generated summary powered by GPT-6 Luna',
                         style: colors.theme.textTheme.bodySmall,
                       ),
                     ),
