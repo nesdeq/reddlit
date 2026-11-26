@@ -22,7 +22,7 @@ class ContentPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (post.contentType) {
       case PostContentType.gallery:
-        // Only a post page lists gallery images, so every one is shown whole, one under the other.
+        if (isCompact) return _croppedImage(context, post.galleryCover!);
         return Column(
           spacing: AppTheme.spacing2,
           children: [
@@ -43,7 +43,9 @@ class ContentPreview extends StatelessWidget {
         return YoutubeVideoPlayer(youtubeId: post.youtubeId!);
 
       case PostContentType.image:
-        return _buildImage(context);
+        return isCompact
+            ? _croppedImage(context, post.url!)
+            : _wholeImage(context, post.url!);
 
       case PostContentType.externalLink:
         return ContentWidgets.externalLinkPreview(
@@ -69,23 +71,14 @@ class ContentPreview extends StatelessWidget {
     }
   }
 
-  Widget _buildImage(BuildContext context) {
-    if (isCompact) {
-      if (!(post.url?.isNotEmpty ?? false) &&
-          !(post.thumbnail?.isNotEmpty ?? false)) {
-        return const SizedBox.shrink();
-      }
-      return ContentWidgets.cachedImage(
+  /// The image cropped to the feed ratio.
+  Widget _croppedImage(BuildContext context, String url) =>
+      ContentWidgets.cachedImage(
         context: context,
-        imageUrl: post.imageUrl,
+        imageUrl: url,
         aspectRatio: AppConstants.feedMediaAspectRatio,
         borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
       );
-    }
-
-    if (!(post.url?.isNotEmpty ?? false)) return const SizedBox.shrink();
-    return _wholeImage(context, post.url!);
-  }
 
   /// The image at full width and its own height, however tall.
   Widget _wholeImage(BuildContext context, String url) => SizedBox(
@@ -133,12 +126,7 @@ class ContentPreview extends StatelessWidget {
     return Stack(
       alignment: Alignment.center,
       children: [
-        ContentWidgets.cachedImage(
-          context: context,
-          imageUrl: imageUrl,
-          aspectRatio: AppConstants.feedMediaAspectRatio,
-          borderRadius: BorderRadius.circular(AppTheme.radiusMedium),
-        ),
+        _croppedImage(context, imageUrl),
         Container(
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: AppConstants.overlayOpacity),

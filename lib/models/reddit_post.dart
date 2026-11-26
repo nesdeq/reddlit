@@ -52,7 +52,7 @@ class RedditPost {
     this.galleryImages = const [],
   });
 
-  /// Parse an old.reddit `div.thing`; only the post-page thing carries selftext and gallery images.
+  /// Parse an old.reddit `div.thing`; only the post-page thing carries selftext.
   factory RedditPost.fromThing(Element thing) {
     String? attr(String name) => thing.attributes['data-$name'];
 
@@ -133,10 +133,18 @@ class RedditPost {
     return markdown.isEmpty ? null : markdown;
   }
 
-  /// Gallery image URLs are rendered into the post page expando. Collect the
-  /// distinct reddit-hosted image URLs in document order.
+  /// The post's media markup: rendered into the expando where reddit auto-expands previews, escaped in its `data-cachedhtml` elsewhere.
+  static Element? _media(Element thing) {
+    final expando = thing.querySelector('.entry .expando');
+    final cached = expando?.attributes['data-cachedhtml'];
+    return cached == null ? expando : (Element.tag('div')..innerHtml = cached);
+  }
+
+  /// A gallery's distinct reddit-hosted image URLs in document order, full-size links before previews.
   static List<String> _extractGalleryImages(Element thing) {
     if (thing.attributes['data-is-gallery'] != 'true') return const [];
+    final media = _media(thing);
+    if (media == null) return const [];
     final seen = <String>{};
     final images = <String>[];
     void consider(String? raw) {
@@ -147,10 +155,10 @@ class RedditPost {
       if (seen.add(key)) images.add(url);
     }
 
-    for (final a in thing.querySelectorAll('.entry a[href]')) {
+    for (final a in media.querySelectorAll('a[href]')) {
       consider(a.attributes['href']);
     }
-    for (final img in thing.querySelectorAll('.entry img[src]')) {
+    for (final img in media.querySelectorAll('img[src]')) {
       consider(img.attributes['src']);
     }
     return images;
@@ -161,15 +169,9 @@ class RedditPost {
     caseSensitive: false,
   );
 
-  String get imageUrl {
-    if (isGallery && galleryImages.isEmpty) {
-      return _galleryCover ?? thumbnail ?? '';
-    }
-    if (url != null && url!.isNotEmpty) return url!;
-    return thumbnail ?? '';
-  }
-
-  late final String? _galleryCover = _coverFromThumbnail(thumbnail);
+  /// A feed card's picture for a gallery: its first image, or the one its thumbnail was cut from while the images are unknown.
+  late final String? galleryCover =
+      galleryImages.firstOrNull ?? _coverFromThumbnail(thumbnail) ?? thumbnail;
 
   static String? _coverFromThumbnail(String? thumb) {
     if (thumb == null) return null;
@@ -186,9 +188,9 @@ class RedditPost {
     // isVideo is checked before youtube and image so a video post is never misclassified.
     if (isVideo) return PostContentType.redditVideo;
     if (youtubeId != null) return PostContentType.youtubeVideo;
-    // Gallery cover in the feed (no images loaded yet) renders as an image.
+    // A gallery whose images are unknown still has a cover for the feed.
     if (isGallery && (thumbnail?.isNotEmpty ?? false)) {
-      return PostContentType.image;
+      return PostContentType.gallery;
     }
     if (url == null || isGallery) return PostContentType.text;
     if (redditLink != null) return PostContentType.redditLink;

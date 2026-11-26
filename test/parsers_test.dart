@@ -113,8 +113,9 @@ void main() {
           '<a class="thumbnail"><img src="//preview.redd.it/deadbeef01.jpg?width=140&amp;s=x"></a>'
           '</div>');
       final p = RedditPost.fromThing(t);
-      expect(p.contentType, PostContentType.image);
-      expect(p.imageUrl, 'https://i.redd.it/deadbeef01.jpg');
+      expect(p.contentType, PostContentType.gallery);
+      expect(p.galleryImages, isEmpty);
+      expect(p.galleryCover, 'https://i.redd.it/deadbeef01.jpg');
     });
 
     test('single i.redd.it image keeps its full-res url', () {
@@ -125,7 +126,7 @@ void main() {
           'data-timestamp="1700000000000"><a class="title">I</a></div>');
       final p = RedditPost.fromThing(t);
       expect(p.contentType, PostContentType.image);
-      expect(p.imageUrl, 'https://i.redd.it/pic1.jpeg');
+      expect(p.url, 'https://i.redd.it/pic1.jpeg');
     });
 
     test('captures data-permalink; a non-ascii title encodes for the fetch', () {

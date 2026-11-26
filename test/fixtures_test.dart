@@ -35,7 +35,7 @@ void main() {
     test('i.redd.it post keeps its full-res image url', () {
       final p = posts[1];
       expect(p.contentType, PostContentType.image);
-      expect(p.imageUrl, 'https://i.redd.it/agi1jkgz2cch1.jpeg');
+      expect(p.url, 'https://i.redd.it/agi1jkgz2cch1.jpeg');
     });
 
     test('v.redd.it listing post: hls manifest is built from the id', () {
@@ -64,6 +64,23 @@ void main() {
       expect(p.contentType, PostContentType.gallery);
       expect(p.galleryImages, isNotEmpty);
       expect(p.galleryImages.every((u) => u.contains('redd.it')), isTrue);
+    });
+
+    test('a gallery reddit leaves collapsed lists the same images', () {
+      final thing = _doc('post-detail.html').getElementById('thing_t3_1usgznm')!;
+      final rendered = RedditPost.fromThing(thing).galleryImages;
+      expect(rendered, hasLength(3));
+
+      // Where media previews do not auto-expand, the expando arrives hidden with its markup escaped.
+      final expando = thing.querySelector('.expando')!;
+      expando.attributes['data-cachedhtml'] = expando.innerHtml;
+      expando.innerHtml = '<span class="error">loading...</span>';
+      final collapsed = RedditPost.fromThing(
+        html_parser.parse(thing.outerHtml).querySelector('.thing')!,
+      );
+
+      expect(collapsed.galleryImages, rendered);
+      expect(collapsed.contentType, PostContentType.gallery);
     });
   });
 
